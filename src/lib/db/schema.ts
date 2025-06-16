@@ -3,26 +3,50 @@ import { relations } from 'drizzle-orm';
 
 // Users table (will be managed by BetterAuth but we define it for completeness)
 export const users = pgTable('users', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: varchar('id', { length: 255 }).primaryKey(),
   email: varchar('email', { length: 255 }).notNull().unique(),
+  emailVerified: boolean('email_verified').default(false),
   name: varchar('name', { length: 255 }),
+  image: text('image'),
   avatarUrl: text('avatar_url'),
   preferences: jsonb('preferences').default('{}'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
 // Sessions table (managed by BetterAuth)
 export const sessions = pgTable('sessions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  id: varchar('id', { length: 255 }).primaryKey(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
   token: text('token').notNull(),
+  userAgent: text('user_agent'),
+  ipAddress: text('ip_address'),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
+
+// Accounts table (for social authentication)
+export const account = pgTable('account', {
+  id: varchar('id', { length: 255 }).primaryKey(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  accountId: varchar('account_id', { length: 255 }).notNull(),
+  providerId: varchar('provider_id', { length: 255 }).notNull(),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  idToken: text('id_token'),
+  accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }),
+  refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }),
+  scope: text('scope'),
+  password: text('password'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
 // Chat conversations
 export const chats = pgTable('chats', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
   title: varchar('title', { length: 255 }).notNull(),
   folderId: uuid('folder_id'), // For future folder organization
   modelConfig: jsonb('model_config').default('{}'),
@@ -58,7 +82,7 @@ export const messages = pgTable('messages', {
 // File attachments and metadata
 export const files = pgTable('files', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
   messageId: uuid('message_id').references(() => messages.id, { onDelete: 'set null' }),
   chatId: uuid('chat_id').notNull().references(() => chats.id, { onDelete: 'cascade' }),
   filename: varchar('filename', { length: 255 }).notNull(),
@@ -78,7 +102,7 @@ export const files = pgTable('files', {
 // Custom tool registry for users
 export const customTools = pgTable('custom_tools', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  userId: varchar('user_id', { length: 255 }).references(() => users.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 100 }).notNull(),
   description: text('description').notNull(),
   parameters: jsonb('parameters').notNull(), // Zod schema for the tool
@@ -92,7 +116,7 @@ export const customTools = pgTable('custom_tools', {
 // Usage analytics and metrics
 export const usageMetrics = pgTable('usage_metrics', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
   chatId: uuid('chat_id').notNull().references(() => chats.id, { onDelete: 'cascade' }),
   provider: varchar('provider', { length: 50 }).notNull(),
   model: varchar('model', { length: 100 }).notNull(),
@@ -105,6 +129,16 @@ export const usageMetrics = pgTable('usage_metrics', {
   createdAtIdx: index('usage_metrics_created_at_idx').on(table.createdAt),
 }));
 
+// BetterAuth verification table
+export const verification = pgTable('verification', {
+  id: varchar('id', { length: 255 }).primaryKey(),
+  identifier: varchar('identifier', { length: 255 }).notNull(),
+  value: text('value').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
+
 // Define relationships
 export const usersRelations = relations(users, ({ many }) => ({
   chats: many(chats),
@@ -112,6 +146,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   customTools: many(customTools),
   usageMetrics: many(usageMetrics),
   sessions: many(sessions),
+  accounts: many(account),
 }));
 
 export const chatsRelations = relations(chats, ({ one, many }) => ({
@@ -162,5 +197,19 @@ export const usageMetricsRelations = relations(usageMetrics, ({ one }) => ({
   chat: one(chats, {
     fields: [usageMetrics.chatId],
     references: [chats.id],
+  }),
+}));
+
+export const verificationRelations = relations(verification, ({ one }) => ({
+  user: one(users, {
+    fields: [verification.identifier],
+    references: [users.email], // Assuming identifier is email for verification
+  }),
+}));
+
+export const accountRelations = relations(account, ({ one }) => ({
+  user: one(users, {
+    fields: [account.userId],
+    references: [users.id],
   }),
 }));

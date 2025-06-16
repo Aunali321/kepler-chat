@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "./db";
-import { users, sessions } from "./db/schema";
+import { users, sessions, verification, account } from "./db/schema";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -9,11 +9,19 @@ export const auth = betterAuth({
     schema: {
       user: users,
       session: sessions,
+      verification: verification,
+      account: account,
     },
   }),
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false, // Disable for MVP, can enable later
+  },
+  socialProviders: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    },
   },
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
@@ -57,7 +65,7 @@ export const auth = betterAuth({
     enabled: true,
   },
   // Trusted origins for CORS
-  trustedOrigins: process.env.NODE_ENV === "production" 
+  trustedOrigins: process.env.NODE_ENV === "production"
     ? [process.env.BETTER_AUTH_URL || "https://your-domain.com"]
     : ["http://localhost:3000"],
 });

@@ -36,7 +36,7 @@ The project supports multiple package managers:
 ### Tech Stack
 - **Frontend**: Next.js 15 with App Router, React 19, TypeScript
 - **Styling**: Tailwind CSS v4, shadcn/ui components
-- **Database**: PostgreSQL with Neon, Drizzle ORM for type-safe database operations
+- **Database**: PostgreSQL (self-hosted VPS), Drizzle ORM for type-safe database operations
 - **Authentication**: BetterAuth with secure session management
 - **File Storage**: Cloudflare R2 with presigned URL uploads
 - **AI Integration**: Vercel AI SDK (planned)
