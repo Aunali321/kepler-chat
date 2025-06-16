@@ -16,8 +16,8 @@ interface ChatInterfaceProps {
 }
 
 export function ChatInterface({ chatId, initialMessages = [] }: ChatInterfaceProps) {
-  const [selectedProvider, setSelectedProvider] = useState<ProviderKey>('openai');
-  const [selectedModel, setSelectedModel] = useState('gpt-4.1-mini');
+  const [selectedProvider, setSelectedProvider] = useState<ProviderKey>('google');
+  const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash');
   const [systemPrompt, setSystemPrompt] = useState('');
   const [enabledTools, setEnabledTools] = useState<ToolName[]>(defaultTools);
 
@@ -79,7 +79,7 @@ export function ChatInterface({ chatId, initialMessages = [] }: ChatInterfacePro
             />
           </div>
         </div>
-        
+
         {/* System prompt input */}
         <div className="mt-2">
           <input
@@ -94,7 +94,7 @@ export function ChatInterface({ chatId, initialMessages = [] }: ChatInterfacePro
 
       {/* Messages */}
       <div className="flex-1 overflow-hidden">
-        <MessageList 
+        <MessageList
           messages={messages}
           isLoading={isLoading}
         />

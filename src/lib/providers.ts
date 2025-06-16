@@ -13,6 +13,9 @@ export interface ModelConfig {
   maxTokens: number;
   supportsVision: boolean;
   supportsTools: boolean;
+  supportsAudio: boolean;
+  supportsVideo: boolean;
+  supportsDocument: boolean;
   costPer1kTokens: {
     input: number;
     output: number;
@@ -41,6 +44,9 @@ export const providers: Record<ProviderKey, Provider> = {
         maxTokens: 128000,
         supportsVision: true,
         supportsTools: true,
+        supportsAudio: false,
+        supportsVideo: false,
+        supportsDocument: false,
         costPer1kTokens: { input: 0.0025, output: 0.01 }
       },
       'gpt-4o-mini': {
@@ -50,6 +56,9 @@ export const providers: Record<ProviderKey, Provider> = {
         maxTokens: 128000,
         supportsVision: true,
         supportsTools: true,
+        supportsAudio: false,
+        supportsVideo: false,
+        supportsDocument: false,
         costPer1kTokens: { input: 0.00015, output: 0.0006 }
       },
       'gpt-4.1-mini': {
@@ -59,6 +68,9 @@ export const providers: Record<ProviderKey, Provider> = {
         maxTokens: 128000,
         supportsVision: true,
         supportsTools: true,
+        supportsAudio: false,
+        supportsVideo: false,
+        supportsDocument: false,
         costPer1kTokens: { input: 0.00015, output: 0.0006 }
       },
       'gpt-3.5-turbo': {
@@ -68,6 +80,9 @@ export const providers: Record<ProviderKey, Provider> = {
         maxTokens: 16385,
         supportsVision: false,
         supportsTools: true,
+        supportsAudio: false,
+        supportsVideo: false,
+        supportsDocument: false,
         costPer1kTokens: { input: 0.0005, output: 0.0015 }
       }
     }
@@ -85,6 +100,9 @@ export const providers: Record<ProviderKey, Provider> = {
         maxTokens: 200000,
         supportsVision: true,
         supportsTools: true,
+        supportsAudio: false,
+        supportsVideo: false,
+        supportsDocument: false,
         costPer1kTokens: { input: 0.003, output: 0.015 }
       },
       'claude-3-5-haiku': {
@@ -94,6 +112,9 @@ export const providers: Record<ProviderKey, Provider> = {
         maxTokens: 200000,
         supportsVision: true,
         supportsTools: true,
+        supportsAudio: false,
+        supportsVideo: false,
+        supportsDocument: false,
         costPer1kTokens: { input: 0.0008, output: 0.004 }
       },
       'claude-3-haiku': {
@@ -103,6 +124,9 @@ export const providers: Record<ProviderKey, Provider> = {
         maxTokens: 200000,
         supportsVision: true,
         supportsTools: true,
+        supportsAudio: false,
+        supportsVideo: false,
+        supportsDocument: false,
         costPer1kTokens: { input: 0.00025, output: 0.00125 }
       }
     }
@@ -113,13 +137,16 @@ export const providers: Record<ProviderKey, Provider> = {
     description: 'Gemini models with strong reasoning and multimodal capabilities',
     apiKeyRequired: true,
     models: {
-      'gemini-2.0-flash-exp': {
-        id: 'gemini-2.0-flash-exp',
+      'gemini-2.0-flash': {
+        id: 'gemini-2.0-flash',
         name: 'Gemini 2.0 Flash',
         description: 'Latest Gemini model with improved capabilities',
         maxTokens: 1048576,
         supportsVision: true,
         supportsTools: true,
+        supportsAudio: true,
+        supportsVideo: true,
+        supportsDocument: true,
         costPer1kTokens: { input: 0.00075, output: 0.003 }
       },
       'gemini-1.5-pro': {
@@ -129,6 +156,9 @@ export const providers: Record<ProviderKey, Provider> = {
         maxTokens: 2097152,
         supportsVision: true,
         supportsTools: true,
+        supportsAudio: true,
+        supportsVideo: true,
+        supportsDocument: true,
         costPer1kTokens: { input: 0.00125, output: 0.005 }
       },
       'gemini-1.5-flash': {
@@ -138,6 +168,9 @@ export const providers: Record<ProviderKey, Provider> = {
         maxTokens: 1048576,
         supportsVision: true,
         supportsTools: true,
+        supportsAudio: false,
+        supportsVideo: true,
+        supportsDocument: true,
         costPer1kTokens: { input: 0.000075, output: 0.0003 }
       }
     }
@@ -155,6 +188,9 @@ export const providers: Record<ProviderKey, Provider> = {
         maxTokens: 200000,
         supportsVision: true,
         supportsTools: true,
+        supportsAudio: false,
+        supportsVideo: false,
+        supportsDocument: false,
         costPer1kTokens: { input: 0.003, output: 0.015 }
       },
       'gpt-4o': {
@@ -164,6 +200,9 @@ export const providers: Record<ProviderKey, Provider> = {
         maxTokens: 128000,
         supportsVision: true,
         supportsTools: true,
+        supportsAudio: false,
+        supportsVideo: false,
+        supportsDocument: false,
         costPer1kTokens: { input: 0.0025, output: 0.01 }
       },
       'llama-3.1-70b': {
@@ -173,6 +212,9 @@ export const providers: Record<ProviderKey, Provider> = {
         maxTokens: 131072,
         supportsVision: false,
         supportsTools: true,
+        supportsAudio: false,
+        supportsVideo: false,
+        supportsDocument: false,
         costPer1kTokens: { input: 0.00059, output: 0.00079 }
       }
     }
@@ -229,27 +271,29 @@ export function validateApiKeys(): Record<ProviderKey, boolean> {
 
 export function getDefaultModel(): { providerId: ProviderKey; modelId: string } {
   const apiKeys = validateApiKeys();
-  
+
+  // Fall back to Gemini Flash
+  if (apiKeys.google) {
+    return { providerId: 'google', modelId: 'gemini-2.0-flash' };
+  }
+
+
   // Prefer OpenAI GPT-4o-mini as default if available
   if (apiKeys.openai) {
     return { providerId: 'openai', modelId: 'gpt-4.1-mini' };
   }
-  
+
   // Fall back to Claude 3.5 Haiku
   if (apiKeys.anthropic) {
     return { providerId: 'anthropic', modelId: 'claude-3-5-haiku' };
   }
-  
-  // Fall back to Gemini Flash
-  if (apiKeys.google) {
-    return { providerId: 'google', modelId: 'gemini-1.5-flash' };
-  }
-  
+
+
   // Fall back to OpenRouter
   if (apiKeys.openrouter) {
     return { providerId: 'openrouter', modelId: 'llama-3.1-70b' };
   }
-  
+
   throw new Error('No API keys configured. Please set up at least one provider API key.');
 }
 
@@ -257,3 +301,4 @@ export function getAvailableProviders(): ProviderKey[] {
   const apiKeys = validateApiKeys();
   return Object.keys(apiKeys).filter(key => apiKeys[key as ProviderKey]) as ProviderKey[];
 }
+

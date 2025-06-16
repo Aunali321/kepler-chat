@@ -130,36 +130,52 @@ export async function POST(req: Request) {
     const processedMessages = messages
       .filter(msg => ['user', 'assistant', 'system'].includes(msg.role))
       .map((msg) => {
-        // If message has attachments, create multi-part content
+        // If message has attachments, check model support but pass through as-is
         if (msg.experimental_attachments && msg.experimental_attachments.length > 0) {
-          const contentParts: Array<{
-            type: 'text' | 'image';
-            text?: string;
-            image?: string;
-          }> = [];
-
-          // Add text content if present
-          if (typeof msg.content === 'string' && msg.content.trim()) {
-            contentParts.push({
-              type: 'text',
-              text: msg.content,
-            });
-          }
-
-          // Add image attachments
-          for (const attachment of msg.experimental_attachments) {
-            if (attachment.contentType?.startsWith('image/')) {
-              contentParts.push({
-                type: 'image',
-                image: attachment.url,
-              });
+          // Check for audio attachments and model support
+          const audioAttachments = msg.experimental_attachments.filter(att => 
+            att.contentType?.startsWith('audio/')
+          );
+          
+          if (audioAttachments.length > 0) {
+            const supportsAudio = modelConfig.supportsAudio;
+            if (!supportsAudio) {
+              throw new Error(`Audio input is not supported by ${provider}/${model}. Only Gemini 2.0 Flash and Gemini 1.5 Pro support direct audio processing.`);
             }
           }
 
+          // Check for video attachments and model support
+          const videoAttachments = msg.experimental_attachments.filter(att => 
+            att.contentType?.startsWith('video/')
+          );
+          
+          if (videoAttachments.length > 0) {
+            const supportsVideo = modelConfig.supportsVideo;
+            if (!supportsVideo) {
+              throw new Error(`Video input is not supported by ${provider}/${model}. Only Gemini models support direct video processing.`);
+            }
+          }
+
+          // Check for document attachments and model support
+          const documentAttachments = msg.experimental_attachments.filter(att => 
+            att.contentType === 'application/pdf' || 
+            att.contentType?.startsWith('text/') ||
+            att.contentType === 'application/json'
+          );
+          
+          if (documentAttachments.length > 0) {
+            const supportsDocument = modelConfig.supportsDocument;
+            if (!supportsDocument) {
+              throw new Error(`Document input is not supported by ${provider}/${model}. Only Gemini models support direct document processing.`);
+            }
+          }
+
+          // Return the message with experimental_attachments - let convertToCoreMessages handle the conversion
           return {
             id: msg.id,
             role: msg.role as 'user' | 'assistant' | 'system',
-            content: contentParts,
+            content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+            experimental_attachments: msg.experimental_attachments,
           };
         } else {
           // No attachments, use content as-is

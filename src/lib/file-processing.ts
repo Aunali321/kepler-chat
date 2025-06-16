@@ -13,6 +13,7 @@ export const SUPPORTED_FILE_TYPES = {
   images: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
   documents: ['application/pdf', 'text/plain', 'text/markdown', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
   audio: ['audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/ogg'],
+  video: ['video/mp4', 'video/webm', 'video/quicktime', 'video/avi'],
   code: ['application/json', 'application/xml', 'text/html', 'text/css', 'text/javascript', 'text/typescript', 'text/python'],
 } as const;
 
@@ -20,6 +21,7 @@ export const MAX_FILE_SIZES = {
   images: 20 * 1024 * 1024, // 20MB
   documents: 50 * 1024 * 1024, // 50MB
   audio: 25 * 1024 * 1024, // 25MB
+  video: 100 * 1024 * 1024, // 100MB
   code: 5 * 1024 * 1024, // 5MB
 } as const;
 
@@ -28,6 +30,7 @@ export function validateFileType(file: File): boolean {
     ...SUPPORTED_FILE_TYPES.images,
     ...SUPPORTED_FILE_TYPES.documents,
     ...SUPPORTED_FILE_TYPES.audio,
+    ...SUPPORTED_FILE_TYPES.video,
     ...SUPPORTED_FILE_TYPES.code,
   ];
   
@@ -44,6 +47,9 @@ export function validateFileSize(file: File): boolean {
   if (SUPPORTED_FILE_TYPES.audio.includes(file.type as any)) {
     return file.size <= MAX_FILE_SIZES.audio;
   }
+  if (SUPPORTED_FILE_TYPES.video.includes(file.type as any)) {
+    return file.size <= MAX_FILE_SIZES.video;
+  }
   if (SUPPORTED_FILE_TYPES.code.includes(file.type as any)) {
     return file.size <= MAX_FILE_SIZES.code;
   }
@@ -54,6 +60,7 @@ export function getFileCategory(file: File): string {
   if (SUPPORTED_FILE_TYPES.images.includes(file.type as any)) return 'image';
   if (SUPPORTED_FILE_TYPES.documents.includes(file.type as any)) return 'document';
   if (SUPPORTED_FILE_TYPES.audio.includes(file.type as any)) return 'audio';
+  if (SUPPORTED_FILE_TYPES.video.includes(file.type as any)) return 'video';
   if (SUPPORTED_FILE_TYPES.code.includes(file.type as any)) return 'code';
   return 'unknown';
 }

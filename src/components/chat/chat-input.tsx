@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Send, Square, Paperclip, Image, X, FileText, Music } from 'lucide-react';
+import { Send, Square, Paperclip, Image, X, FileText, Music, Video } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { uploadFile, validateFileClient } from '@/lib/file-upload';
 
@@ -46,6 +46,16 @@ export function ChatInput({
     }
   }, [input]);
 
+  // Add effect to track uploadedAttachments changes
+  useEffect(() => {
+    console.log('📋 uploadedAttachments changed:', uploadedAttachments);
+  }, [uploadedAttachments]);
+
+  // Add effect to track files changes
+  useEffect(() => {
+    console.log('📁 files changed:', files ? Array.from(files).map(f => f.name) : null);
+  }, [files]);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -66,6 +76,9 @@ export function ChatInput({
     }
 
     const fileList = e.target.files;
+    console.log('=== FILE UPLOAD DEBUG ===');
+    console.log('Selected files:', Array.from(fileList).map(f => ({ name: f.name, type: f.type, size: f.size })));
+    
     setFiles(fileList);
     setUploadError(null);
     setIsUploading(true);
@@ -74,29 +87,39 @@ export function ChatInput({
       const attachments: Attachment[] = [];
 
       for (const file of Array.from(fileList)) {
+        console.log(`Processing file: ${file.name} (${file.type})`);
+        
         // Validate file first
         const validation = validateFileClient(file);
+        console.log(`Validation result for ${file.name}:`, validation);
         if (!validation.valid) {
           throw new Error(validation.error);
         }
 
         // Upload to R2
+        console.log(`Uploading ${file.name} to R2...`);
         const uploadResult = await uploadFile(file, { chatId });
+        console.log(`Upload result for ${file.name}:`, uploadResult);
+        
         if (!uploadResult.success) {
           throw new Error(uploadResult.error || `Failed to upload ${file.name}`);
         }
 
         if (uploadResult.file) {
-          attachments.push({
+          const attachment = {
             name: uploadResult.file.filename,
             contentType: uploadResult.file.contentType,
             url: uploadResult.file.url,
-          });
+          };
+          console.log(`Adding attachment for ${file.name}:`, attachment);
+          attachments.push(attachment);
         }
       }
 
+      console.log('Final attachments array:', attachments);
       setUploadedAttachments(attachments);
     } catch (error) {
+      console.error('File upload error:', error);
       setUploadError(error instanceof Error ? error.message : 'Failed to upload files');
       setFiles(undefined);
       setUploadedAttachments([]);
@@ -106,6 +129,8 @@ export function ChatInput({
   };
 
   const removeFiles = () => {
+    console.log('🗑️ removeFiles called - clearing attachments');
+    console.trace('removeFiles call stack');
     setFiles(undefined);
     setUploadedAttachments([]);
     setUploadError(null);
@@ -117,8 +142,15 @@ export function ChatInput({
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
+    console.log('=== CHAT INPUT DEBUG ===');
+    console.log('isUploading:', isUploading);
+    console.log('input.trim():', input.trim());
+    console.log('uploadedAttachments:', uploadedAttachments);
+    console.log('uploadedAttachments.length:', uploadedAttachments.length);
+
     // Don't submit if still uploading
     if (isUploading) {
+      console.log('❌ Blocked: Still uploading');
       return;
     }
 
@@ -131,6 +163,8 @@ export function ChatInput({
         url: att.url,
       }));
 
+      console.log('✅ Submitting with attachmentUrls:', attachmentUrls);
+
       handleSubmit(e, {
         experimental_attachments: attachmentUrls.length > 0 ? attachmentUrls : undefined,
       });
@@ -141,6 +175,8 @@ export function ChatInput({
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+    } else {
+      console.log('❌ Blocked: No input and no attachments');
     }
   };
 
@@ -160,6 +196,7 @@ export function ChatInput({
             const getFileIcon = (contentType: string) => {
               if (contentType.startsWith('image/')) return <Image className="w-4 h-4" />;
               if (contentType.startsWith('audio/')) return <Music className="w-4 h-4" />;
+              if (contentType.startsWith('video/')) return <Video className="w-4 h-4" />;
               if (contentType === 'application/pdf' || contentType.startsWith('text/')) return <FileText className="w-4 h-4" />;
               return <Paperclip className="w-4 h-4" />;
             };
@@ -199,7 +236,13 @@ export function ChatInput({
       )}
 
       {/* Input form */}
-      <form onSubmit={onSubmit} className="flex gap-3">
+      <form 
+        onSubmit={(e) => {
+          console.log('📋 Form onSubmit triggered!');
+          onSubmit(e);
+        }} 
+        className="flex gap-3"
+      >
         <div className="flex-1 relative">
           <textarea
             ref={textareaRef}
@@ -220,7 +263,10 @@ export function ChatInput({
           {/* File attachment button */}
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => {
+              console.log('📎 File attachment button clicked');
+              fileInputRef.current?.click();
+            }}
             className="absolute right-3 top-3 p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50"
             disabled={isLoading}
             title="Attach file"
@@ -232,7 +278,15 @@ export function ChatInput({
         {/* Send/Stop button */}
         <Button
           type={isLoading ? 'button' : 'submit'}
-          onClick={isLoading ? onStop : undefined}
+          onClick={(e) => {
+            console.log('🚀 Send button clicked!', { isLoading, type: isLoading ? 'button' : 'submit' });
+            if (isLoading) {
+              console.log('🛑 Calling onStop');
+              onStop();
+            } else {
+              console.log('📝 Submit button - should trigger form onSubmit');
+            }
+          }}
           disabled={
             isUploading ||
             (!isLoading && !input.trim() && uploadedAttachments.length === 0)

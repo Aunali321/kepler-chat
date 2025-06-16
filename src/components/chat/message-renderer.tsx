@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { User, Bot, Copy, Check, FileText, Music } from 'lucide-react';
+import { User, Bot, Copy, Check, FileText, Music, Video } from 'lucide-react';
 import { useState } from 'react';
 import type { Message } from 'ai';
 
@@ -128,6 +128,7 @@ export function MessageRenderer({ message, isLast }: MessageRendererProps) {
                 attachment?.contentType?.startsWith('image/') ||
                 attachment?.contentType?.startsWith('application/pdf') ||
                 attachment?.contentType?.startsWith('audio/') ||
+                attachment?.contentType?.startsWith('video/') ||
                 attachment?.contentType?.startsWith('text/')
               )
               .map((attachment: any, index: number) => (
@@ -148,6 +149,12 @@ export function MessageRenderer({ message, isLast }: MessageRendererProps) {
                   {attachment.contentType?.startsWith('audio/') && (
                     <div className="flex items-center gap-2">
                       <Music className="w-5 h-5 text-purple-600" />
+                      <span className="text-sm font-medium">{attachment.name}</span>
+                    </div>
+                  )}
+                  {attachment.contentType?.startsWith('video/') && (
+                    <div className="flex items-center gap-2">
+                      <Video className="w-5 h-5 text-blue-600" />
                       <span className="text-sm font-medium">{attachment.name}</span>
                     </div>
                   )}

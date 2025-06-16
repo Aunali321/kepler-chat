@@ -10,8 +10,8 @@ export default async function ChatPage() {
     userId: user.id,
     title: 'New Chat',
     modelConfig: {
-      provider: 'openai',
-      model: 'gpt-4.1-mini',
+      provider: 'google',
+      model: 'gemini-2.0-flash',
     },
   });
 

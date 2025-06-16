@@ -26,7 +26,9 @@ export const ALLOWED_FILE_TYPES = {
   'application/json': ['.json'],
   'audio/mpeg': ['.mp3'],
   'audio/wav': ['.wav'],
-  'audio/ogg': ['.ogg'],
+  'audio/ogg': ['.ogg', '.opus'],
+  'audio/mp4': ['.m4a', '.mp4'],
+  'audio/webm': ['.webm'],
   'video/mp4': ['.mp4'],
   'video/webm': ['.webm'],
 } as const;
