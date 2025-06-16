@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { UserProfileForm } from "@/components/auth/user-profile-form";
 import { authClient } from "@/lib/auth-client";
-import { LogOut, MessageCircle, Upload, Settings } from "lucide-react";
+import { LogOut, MessageCircle, Upload, Settings, Plus } from "lucide-react";
+import Link from "next/link";
 
 export default function DashboardPage() {
   return (
@@ -18,14 +19,23 @@ export default function DashboardPage() {
               <p className="text-sm text-gray-600">Welcome to your dashboard</p>
             </div>
             
-            <Button
-              variant="outline"
-              onClick={() => authClient.signOut()}
-              className="flex items-center gap-2"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign out
-            </Button>
+            <div className="flex items-center gap-3">
+              <Link href="/chat">
+                <Button className="flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  New Chat
+                </Button>
+              </Link>
+              
+              <Button
+                variant="outline"
+                onClick={() => authClient.signOut()}
+                className="flex items-center gap-2"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign out
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -69,14 +79,23 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="pt-4 border-t">
-                  <h4 className="font-medium mb-2">Coming Soon:</h4>
+                  <h4 className="font-medium mb-2">🎉 Now Available:</h4>
                   <ul className="text-sm text-gray-600 space-y-1">
-                    <li>• Multiple AI providers (OpenAI, Anthropic, Google)</li>
-                    <li>• Real-time streaming responses</li>
-                    <li>• Multi-modal conversations</li>
-                    <li>• Tool/function calling</li>
-                    <li>• Chat history and organization</li>
+                    <li>✅ Multiple AI providers (OpenAI, Anthropic, Google, OpenRouter)</li>
+                    <li>✅ Real-time streaming responses</li>
+                    <li>✅ Chat history and persistence</li>
+                    <li>✅ Provider and model switching</li>
+                    <li>✅ File attachments support</li>
                   </ul>
+                  
+                  <div className="mt-4">
+                    <Link href="/chat">
+                      <Button className="w-full">
+                        <MessageCircle className="w-4 h-4 mr-2" />
+                        Start Your First Chat
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -114,11 +133,11 @@ export default function DashboardPage() {
               <Card>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-green-100 rounded-full">
-                      <div className="w-3 h-3 bg-green-600 rounded-full"></div>
+                    <div className="p-2 bg-blue-100 rounded-full">
+                      <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
                     </div>
                     <div>
-                      <p className="text-sm font-medium">File Storage</p>
+                      <p className="text-sm font-medium">AI Chat</p>
                       <p className="text-xs text-gray-600">Ready</p>
                     </div>
                   </div>
