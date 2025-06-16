@@ -43,19 +43,99 @@ export const account = pgTable('account', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
+// Chat folders for organization
+export const chatFolders = pgTable('chat_folders', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description'),
+  color: varchar('color', { length: 7 }).default('#6366f1'), // Hex color
+  parentId: uuid('parent_id'), // For nested folders
+  isDefault: boolean('is_default').default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  userIdIdx: index('chat_folders_user_id_idx').on(table.userId),
+  parentIdIdx: index('chat_folders_parent_id_idx').on(table.parentId),
+}));
+
+// Chat tags for categorization
+export const chatTags = pgTable('chat_tags', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 50 }).notNull(),
+  color: varchar('color', { length: 7 }).default('#6366f1'), // Hex color
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  userIdIdx: index('chat_tags_user_id_idx').on(table.userId),
+  nameIdx: index('chat_tags_name_idx').on(table.name),
+}));
+
+// Many-to-many relationship between chats and tags
+export const chatTagRelations = pgTable('chat_tag_relations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  chatId: uuid('chat_id').notNull().references(() => chats.id, { onDelete: 'cascade' }),
+  tagId: uuid('tag_id').notNull().references(() => chatTags.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  chatIdIdx: index('chat_tag_relations_chat_id_idx').on(table.chatId),
+  tagIdIdx: index('chat_tag_relations_tag_id_idx').on(table.tagId),
+}));
+
+// Chat sharing permissions
+export const chatShares = pgTable('chat_shares', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  chatId: uuid('chat_id').notNull().references(() => chats.id, { onDelete: 'cascade' }),
+  sharedByUserId: varchar('shared_by_user_id', { length: 255 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  sharedWithUserId: varchar('shared_with_user_id', { length: 255 }).references(() => users.id, { onDelete: 'cascade' }),
+  shareToken: varchar('share_token', { length: 255 }).unique(), // For public sharing
+  permission: varchar('permission', { length: 20 }).default('read'), // 'read', 'comment', 'edit'
+  isPublic: boolean('is_public').default(false),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  chatIdIdx: index('chat_shares_chat_id_idx').on(table.chatId),
+  sharedByUserIdIdx: index('chat_shares_shared_by_user_id_idx').on(table.sharedByUserId),
+  sharedWithUserIdIdx: index('chat_shares_shared_with_user_id_idx').on(table.sharedWithUserId),
+  shareTokenIdx: index('chat_shares_share_token_idx').on(table.shareToken),
+}));
+
+// User preferences for customization
+export const userPreferences = pgTable('user_preferences', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id, { onDelete: 'cascade' }).unique(),
+  theme: varchar('theme', { length: 20 }).default('system'), // 'light', 'dark', 'system'
+  language: varchar('language', { length: 10 }).default('en'),
+  defaultModel: varchar('default_model', { length: 100 }).default('gpt-4o-mini'),
+  defaultProvider: varchar('default_provider', { length: 50 }).default('openai'),
+  chatSettings: jsonb('chat_settings').default('{}'), // Stream speed, auto-save, etc.
+  uiSettings: jsonb('ui_settings').default('{}'), // Sidebar width, font size, etc.
+  notificationSettings: jsonb('notification_settings').default('{}'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  userIdIdx: index('user_preferences_user_id_idx').on(table.userId),
+}));
+
 // Chat conversations
 export const chats = pgTable('chats', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
   title: varchar('title', { length: 255 }).notNull(),
-  folderId: uuid('folder_id'), // For future folder organization
+  folderId: uuid('folder_id').references(() => chatFolders.id, { onDelete: 'set null' }),
   modelConfig: jsonb('model_config').default('{}'),
   isShared: boolean('is_shared').default(false),
+  isArchived: boolean('is_archived').default(false),
+  isPinned: boolean('is_pinned').default(false),
+  lastMessageAt: timestamp('last_message_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 }, (table) => ({
   userIdIdx: index('chats_user_id_idx').on(table.userId),
+  folderIdIdx: index('chats_folder_id_idx').on(table.folderId),
   createdAtIdx: index('chats_created_at_idx').on(table.createdAt),
+  lastMessageAtIdx: index('chats_last_message_at_idx').on(table.lastMessageAt),
+  titleIdx: index('chats_title_idx').on(table.title), // For search
 }));
 
 // Individual messages with multi-part support
@@ -78,6 +158,7 @@ export const messages = pgTable('messages', {
   chatIdIdx: index('messages_chat_id_idx').on(table.chatId),
   createdAtIdx: index('messages_created_at_idx').on(table.createdAt),
   roleIdx: index('messages_role_idx').on(table.role),
+  // Full-text search index will be added via SQL migration
 }));
 
 // File attachments and metadata
@@ -141,13 +222,75 @@ export const verification = pgTable('verification', {
 });
 
 // Define relationships
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ one, many }) => ({
   chats: many(chats),
   files: many(files),
   customTools: many(customTools),
   usageMetrics: many(usageMetrics),
   sessions: many(sessions),
   accounts: many(account),
+  chatFolders: many(chatFolders),
+  chatTags: many(chatTags),
+  chatSharesCreated: many(chatShares, { relationName: 'sharedBy' }),
+  chatSharesReceived: many(chatShares, { relationName: 'sharedWith' }),
+  preferences: one(userPreferences),
+}));
+
+export const chatFoldersRelations = relations(chatFolders, ({ one, many }) => ({
+  user: one(users, {
+    fields: [chatFolders.userId],
+    references: [users.id],
+  }),
+  parent: one(chatFolders, {
+    fields: [chatFolders.parentId],
+    references: [chatFolders.id],
+    relationName: 'parent',
+  }),
+  children: many(chatFolders, { relationName: 'parent' }),
+  chats: many(chats),
+}));
+
+export const chatTagsRelations = relations(chatTags, ({ one, many }) => ({
+  user: one(users, {
+    fields: [chatTags.userId],
+    references: [users.id],
+  }),
+  chatTagRelations: many(chatTagRelations),
+}));
+
+export const chatTagRelationsRelations = relations(chatTagRelations, ({ one }) => ({
+  chat: one(chats, {
+    fields: [chatTagRelations.chatId],
+    references: [chats.id],
+  }),
+  tag: one(chatTags, {
+    fields: [chatTagRelations.tagId],
+    references: [chatTags.id],
+  }),
+}));
+
+export const chatSharesRelations = relations(chatShares, ({ one }) => ({
+  chat: one(chats, {
+    fields: [chatShares.chatId],
+    references: [chats.id],
+  }),
+  sharedByUser: one(users, {
+    fields: [chatShares.sharedByUserId],
+    references: [users.id],
+    relationName: 'sharedBy',
+  }),
+  sharedWithUser: one(users, {
+    fields: [chatShares.sharedWithUserId],
+    references: [users.id],
+    relationName: 'sharedWith',
+  }),
+}));
+
+export const userPreferencesRelations = relations(userPreferences, ({ one }) => ({
+  user: one(users, {
+    fields: [userPreferences.userId],
+    references: [users.id],
+  }),
 }));
 
 export const chatsRelations = relations(chats, ({ one, many }) => ({
@@ -155,9 +298,15 @@ export const chatsRelations = relations(chats, ({ one, many }) => ({
     fields: [chats.userId],
     references: [users.id],
   }),
+  folder: one(chatFolders, {
+    fields: [chats.folderId],
+    references: [chatFolders.id],
+  }),
   messages: many(messages),
   files: many(files),
   usageMetrics: many(usageMetrics),
+  chatTagRelations: many(chatTagRelations),
+  chatShares: many(chatShares),
 }));
 
 export const messagesRelations = relations(messages, ({ one, many }) => ({

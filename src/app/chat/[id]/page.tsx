@@ -1,7 +1,8 @@
 import { requireAuth } from '@/lib/auth-server';
 import { getChatWithMessages } from '@/lib/db/queries';
 import { ChatInterface } from '@/components/chat/chat-interface';
-import { notFound } from 'next/navigation';
+import { ChatSidebar } from '@/components/chat/chat-sidebar';
+import { notFound, redirect } from 'next/navigation';
 
 interface ChatPageProps {
   params: Promise<{ id: string }>;
@@ -34,11 +35,17 @@ export default async function ChatPage({ params }: ChatPageProps) {
   });
 
   return (
-    <div className="h-screen flex flex-col">
-      <ChatInterface 
-        chatId={id}
-        initialMessages={initialMessages}
+    <div className="h-screen flex">
+      <ChatSidebar 
+        selectedChatId={id}
       />
+      <div className="flex-1 flex flex-col">
+        <ChatInterface 
+          chatId={id}
+          initialMessages={initialMessages}
+          chatTitle={chatWithMessages.title}
+        />
+      </div>
     </div>
   );
 }

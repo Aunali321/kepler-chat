@@ -4,13 +4,16 @@ import { cn } from '@/lib/utils';
 import { User, Bot, Copy, Check, FileText, Music, Video } from 'lucide-react';
 import { useState } from 'react';
 import type { Message } from 'ai';
+import type { Message as DBMessage } from '@/lib/db/types';
 
 interface MessageRendererProps {
-  message: Message;
-  isLast: boolean;
+  message: Message | DBMessage;
+  isLast?: boolean;
+  isSharedView?: boolean;
+  canEdit?: boolean;
 }
 
-export function MessageRenderer({ message, isLast }: MessageRendererProps) {
+export function MessageRenderer({ message, isLast = false, isSharedView = false, canEdit = false }: MessageRendererProps) {
   const [copied, setCopied] = useState(false);
   
   const isUser = message.role === 'user';
@@ -27,19 +30,21 @@ export function MessageRenderer({ message, isLast }: MessageRendererProps) {
 
   // Handle different content types
   const renderContent = () => {
-    if (typeof message.content === 'string') {
+    const content = message.content;
+    
+    if (typeof content === 'string') {
       return (
         <div className="prose prose-sm max-w-none">
           <div className="whitespace-pre-wrap break-words">
-            {message.content}
+            {content}
           </div>
         </div>
       );
     }
     
     // Handle multi-part content (e.g., with images)
-    if (Array.isArray(message.content)) {
-      const contentArray = message.content as any[];
+    if (Array.isArray(content)) {
+      const contentArray = content as any[];
       return (
         <div className="space-y-2">
           {contentArray.map((part: any, index: number) => (
@@ -70,6 +75,40 @@ export function MessageRenderer({ message, isLast }: MessageRendererProps) {
     return null;
   }
 
+  // Shared view uses simpler layout
+  if (isSharedView) {
+    return (
+      <div className="p-4 border rounded-lg">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium capitalize">{message.role}</span>
+          <span className="text-xs text-gray-500">
+            {/* Handle both AI SDK messages and DB messages */}
+            {message.createdAt && new Date(message.createdAt).toLocaleString()}
+          </span>
+        </div>
+        {message.content && (
+          <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+        )}
+        
+        {/* Copy button for shared view */}
+        <div className="flex justify-end mt-2">
+          <button
+            onClick={handleCopy}
+            className="p-1 rounded hover:bg-gray-200 transition-colors opacity-0 group-hover:opacity-100"
+            title="Copy message"
+          >
+            {copied ? (
+              <Check className="w-3 h-3 text-green-500" />
+            ) : (
+              <Copy className="w-3 h-3 text-gray-500" />
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Regular chat view
   return (
     <div className={cn(
       'flex gap-3 group',
@@ -121,7 +160,7 @@ export function MessageRenderer({ message, isLast }: MessageRendererProps) {
         </div>
 
         {/* Experimental attachments */}
-        {(message as any).experimental_attachments && (message as any).experimental_attachments.length > 0 && (
+        {(message as any).experimental_attachments && Array.isArray((message as any).experimental_attachments) && (message as any).experimental_attachments.length > 0 && (
           <div className="mt-3 space-y-2">
             {(message as any).experimental_attachments
               .filter((attachment: any) => 
@@ -170,7 +209,7 @@ export function MessageRenderer({ message, isLast }: MessageRendererProps) {
         )}
 
         {/* Tool invocations */}
-        {message.toolInvocations && message.toolInvocations.length > 0 && (
+        {message.toolInvocations && Array.isArray(message.toolInvocations) && message.toolInvocations.length > 0 && (
           <div className="mt-3 space-y-2">
             {message.toolInvocations.map((toolInvocation: any, index: number) => {
               const getToolIcon = (toolName: string) => {
