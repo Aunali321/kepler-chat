@@ -19,12 +19,19 @@ export default async function ChatPage({ params }: ChatPageProps) {
   }
 
   // Convert messages to format expected by useChat
-  const initialMessages = chatWithMessages.messages.map(msg => ({
-    id: msg.id,
-    role: msg.role as 'user' | 'assistant' | 'system' | 'tool',
-    content: msg.content || '',
-    toolInvocations: msg.toolInvocations || [],
-  }));
+  const initialMessages = chatWithMessages.messages.map(msg => {
+    const metadata = msg.metadata as any;
+    return {
+      id: msg.id,
+      role: msg.role as 'user' | 'assistant' | 'system' | 'tool',
+      content: msg.content || '',
+      toolInvocations: msg.toolInvocations || [],
+      // Include experimental_attachments from metadata if they exist
+      ...(metadata?.experimental_attachments && {
+        experimental_attachments: metadata.experimental_attachments
+      }),
+    };
+  });
 
   return (
     <div className="h-screen flex flex-col">

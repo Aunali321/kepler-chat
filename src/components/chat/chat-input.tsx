@@ -2,15 +2,23 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Send, Square, Paperclip, Image, X } from 'lucide-react';
+import { Send, Square, Paperclip, Image, X, FileText, Music } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { uploadFile, validateFileClient } from '@/lib/file-upload';
+
+interface Attachment {
+  name: string;
+  contentType: string;
+  url: string;
+}
 
 interface ChatInputProps {
   input: string;
   handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-  handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  handleSubmit: (e: React.FormEvent<HTMLFormElement>, options?: { experimental_attachments?: FileList | Attachment[] }) => void;
   isLoading: boolean;
   onStop: () => void;
+  chatId?: string;
 }
 
 export function ChatInput({
@@ -19,8 +27,13 @@ export function ChatInput({
   handleSubmit,
   isLoading,
   onStop,
+  chatId,
 }: ChatInputProps) {
-  const [attachments, setAttachments] = useState<File[]>([]);
+  const [files, setFiles] = useState<FileList | undefined>(undefined);
+  const [uploadedAttachments, setUploadedAttachments] = useState<Attachment[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -42,52 +55,146 @@ export function ChatInput({
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    setAttachments(prev => [...prev, ...files]);
-    // Reset input
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) {
+      return;
+    }
+
+    if (!chatId) {
+      setUploadError('Chat ID not available. Please refresh the page.');
+      return;
+    }
+
+    const fileList = e.target.files;
+    setFiles(fileList);
+    setUploadError(null);
+    setIsUploading(true);
+
+    try {
+      const attachments: Attachment[] = [];
+
+      for (const file of Array.from(fileList)) {
+        // Validate file first
+        const validation = validateFileClient(file);
+        if (!validation.valid) {
+          throw new Error(validation.error);
+        }
+
+        // Upload to R2
+        const uploadResult = await uploadFile(file, { chatId });
+        if (!uploadResult.success) {
+          throw new Error(uploadResult.error || `Failed to upload ${file.name}`);
+        }
+
+        if (uploadResult.file) {
+          attachments.push({
+            name: uploadResult.file.filename,
+            contentType: uploadResult.file.contentType,
+            url: uploadResult.file.url,
+          });
+        }
+      }
+
+      setUploadedAttachments(attachments);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Failed to upload files');
+      setFiles(undefined);
+      setUploadedAttachments([]);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const removeFiles = () => {
+    setFiles(undefined);
+    setUploadedAttachments([]);
+    setUploadError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  const removeAttachment = (index: number) => {
-    setAttachments(prev => prev.filter((_, i) => i !== index));
-  };
-
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (input.trim() || attachments.length > 0) {
-      handleSubmit(e);
-      // Clear attachments after sending
-      setAttachments([]);
+
+    // Don't submit if still uploading
+    if (isUploading) {
+      return;
+    }
+
+    if (input.trim() || uploadedAttachments.length > 0) {
+      // Since we're using R2 uploads, we need to pass the uploaded attachment URLs
+      // Convert our R2 attachments to the format expected by AI SDK
+      const attachmentUrls = uploadedAttachments.map(att => ({
+        name: att.name,
+        contentType: att.contentType, 
+        url: att.url,
+      }));
+
+      handleSubmit(e, {
+        experimental_attachments: attachmentUrls.length > 0 ? attachmentUrls : undefined,
+      });
+
+      // Clear files after sending
+      setFiles(undefined);
+      setUploadedAttachments([]);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
   return (
     <div className="space-y-3">
+      {/* Upload error */}
+      {uploadError && (
+        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          {uploadError}
+        </div>
+      )}
+
       {/* File attachments preview */}
-      {attachments.length > 0 && (
+      {(files && files.length > 0) && (
         <div className="flex flex-wrap gap-2">
-          {attachments.map((file, index) => (
-            <div
-              key={index}
-              className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2 text-sm"
-            >
-              {file.type.startsWith('image/') ? (
-                <Image className="w-4 h-4" />
-              ) : (
-                <Paperclip className="w-4 h-4" />
-              )}
-              <span className="truncate max-w-32">{file.name}</span>
-              <button
-                onClick={() => removeAttachment(index)}
-                className="text-gray-500 hover:text-red-500"
+          {Array.from(files).map((file, index) => {
+            const getFileIcon = (contentType: string) => {
+              if (contentType.startsWith('image/')) return <Image className="w-4 h-4" />;
+              if (contentType.startsWith('audio/')) return <Music className="w-4 h-4" />;
+              if (contentType === 'application/pdf' || contentType.startsWith('text/')) return <FileText className="w-4 h-4" />;
+              return <Paperclip className="w-4 h-4" />;
+            };
+
+            const isUploaded = index < uploadedAttachments.length;
+
+            return (
+              <div
+                key={index}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg px-3 py-2 text-sm',
+                  isUploading && !isUploaded ? 'bg-blue-50 border border-blue-200' :
+                    isUploaded ? 'bg-green-50 border border-green-200' : 'bg-gray-100'
+                )}
               >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          ))}
+                {isUploading && !isUploaded ? (
+                  <div className="w-4 h-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                ) : isUploaded ? (
+                  <div className="w-4 h-4 rounded-full bg-green-600 flex items-center justify-center">
+                    <div className="w-2 h-2 bg-white rounded-full" />
+                  </div>
+                ) : (
+                  getFileIcon(file.type)
+                )}
+                <span className="truncate max-w-32">{file.name}</span>
+                <button
+                  onClick={removeFiles}
+                  className="text-gray-500 hover:text-red-500"
+                  disabled={isUploading}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -109,7 +216,7 @@ export function ChatInput({
             rows={1}
             disabled={isLoading}
           />
-          
+
           {/* File attachment button */}
           <button
             type="button"
@@ -126,13 +233,19 @@ export function ChatInput({
         <Button
           type={isLoading ? 'button' : 'submit'}
           onClick={isLoading ? onStop : undefined}
-          disabled={!isLoading && !input.trim() && attachments.length === 0}
+          disabled={
+            isUploading ||
+            (!isLoading && !input.trim() && uploadedAttachments.length === 0)
+          }
           className={cn(
             'px-4 py-3 min-w-[52px]',
-            isLoading && 'bg-red-500 hover:bg-red-600'
+            isLoading && 'bg-red-500 hover:bg-red-600',
+            isUploading && 'bg-blue-500 hover:bg-blue-600'
           )}
         >
-          {isLoading ? (
+          {isUploading ? (
+            <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+          ) : isLoading ? (
             <Square className="w-4 h-4" />
           ) : (
             <Send className="w-4 h-4" />
@@ -145,7 +258,7 @@ export function ChatInput({
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/*,.pdf,.doc,.docx,.txt"
+        accept="image/*,audio/*,.pdf,.txt,.md,.docx,.json,.xml,.html,.css,.js,.ts,.py"
         onChange={handleFileSelect}
         className="hidden"
       />

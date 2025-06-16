@@ -1,7 +1,8 @@
-import { streamText, convertToCoreMessages, type CoreMessage } from 'ai';
+import { streamText, convertToCoreMessages, type CoreMessage, type Attachment } from 'ai';
 import { z } from 'zod';
 import { requireAuthApi } from '@/lib/auth-server';
 import { getModelInstance, getModelConfig, getDefaultModel } from '@/lib/providers';
+import { getAvailableTools, defaultTools, isToolAvailable, type ToolName } from '@/lib/tools';
 import { 
   getChatById, 
   createChat, 
@@ -30,11 +31,17 @@ const ChatRequestSchema = z.object({
       }))
     ]),
     toolInvocations: z.array(z.any()).optional(),
+    experimental_attachments: z.array(z.object({
+      name: z.string().optional(),
+      contentType: z.string().optional(),
+      url: z.string(),
+    })).optional(),
   })),
   chatId: z.string().optional(),
   provider: z.string().optional(),
   model: z.string().optional(),
   systemPrompt: z.string().optional(),
+  enabledTools: z.array(z.string()).optional(),
 });
 
 export async function POST(req: Request) {
@@ -61,7 +68,8 @@ export async function POST(req: Request) {
       chatId, 
       provider: requestedProvider, 
       model: requestedModel,
-      systemPrompt 
+      systemPrompt,
+      enabledTools = defaultTools,
     } = parseResult.data;
 
     // 3. Determine model configuration
@@ -118,17 +126,53 @@ export async function POST(req: Request) {
         content: msg.content || '',
       }));
     
-    // Normalize incoming messages (filter valid roles and ensure content is string)
-    const normalizedMessages = messages
+    // Process current messages with attachments
+    const processedMessages = messages
       .filter(msg => ['user', 'assistant', 'system'].includes(msg.role))
-      .map(msg => ({
-        ...msg,
-        role: msg.role as 'user' | 'assistant' | 'system',
-        content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
-      }));
+      .map((msg) => {
+        // If message has attachments, create multi-part content
+        if (msg.experimental_attachments && msg.experimental_attachments.length > 0) {
+          const contentParts: Array<{
+            type: 'text' | 'image';
+            text?: string;
+            image?: string;
+          }> = [];
+
+          // Add text content if present
+          if (typeof msg.content === 'string' && msg.content.trim()) {
+            contentParts.push({
+              type: 'text',
+              text: msg.content,
+            });
+          }
+
+          // Add image attachments
+          for (const attachment of msg.experimental_attachments) {
+            if (attachment.contentType?.startsWith('image/')) {
+              contentParts.push({
+                type: 'image',
+                image: attachment.url,
+              });
+            }
+          }
+
+          return {
+            id: msg.id,
+            role: msg.role as 'user' | 'assistant' | 'system',
+            content: contentParts,
+          };
+        } else {
+          // No attachments, use content as-is
+          return {
+            id: msg.id,
+            role: msg.role as 'user' | 'assistant' | 'system',
+            content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+          };
+        }
+      });
     
     // Combine and convert to CoreMessages
-    const allMessages = [...historyMessages, ...normalizedMessages];
+    const allMessages = [...historyMessages, ...processedMessages];
     const coreMessages = convertToCoreMessages(allMessages);
 
     // 7. Add system prompt if provided
@@ -143,6 +187,11 @@ export async function POST(req: Request) {
 
     // 8. Save user message(s) to database
     for (const message of messages.filter(m => m.role === 'user')) {
+      // Create metadata object with experimental_attachments if present
+      const metadata = message.experimental_attachments ? {
+        experimental_attachments: message.experimental_attachments
+      } : {};
+
       await createMessage({
         chatId: chat.id,
         role: message.role,
@@ -150,13 +199,18 @@ export async function POST(req: Request) {
         parts: typeof message.content === 'string' ? [] : message.content,
         provider,
         model,
+        ...(Object.keys(metadata).length > 0 && { metadata })
       });
     }
 
-    // 9. Stream AI response
+    // 9. Get enabled tools
+    const tools = getAvailableTools(enabledTools.filter(name => isToolAvailable(name)) as ToolName[]);
+
+    // 10. Stream AI response
     const result = await streamText({
       model: modelInstance,
       messages: coreMessages,
+      tools,
       maxSteps: 3, // Enable multi-step reasoning
       
       onFinish: async ({ text, usage, finishReason, toolCalls }) => {
@@ -210,7 +264,7 @@ export async function POST(req: Request) {
       },
     });
 
-    // 10. Return streaming response
+    // 11. Return streaming response
     return result.toDataStreamResponse();
 
   } catch (error) {

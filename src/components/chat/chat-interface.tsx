@@ -5,8 +5,10 @@ import { useState, useEffect } from 'react';
 import { MessageList } from './message-list';
 import { ChatInput } from './chat-input';
 import { ProviderSelector } from './provider-selector';
+import { ToolSelector } from './tool-selector';
 import { LoadingIndicator } from './loading-indicator';
 import { providers, type ProviderKey } from '@/lib/providers';
+import { defaultTools, type ToolName } from '@/lib/tools';
 
 interface ChatInterfaceProps {
   chatId?: string;
@@ -15,8 +17,9 @@ interface ChatInterfaceProps {
 
 export function ChatInterface({ chatId, initialMessages = [] }: ChatInterfaceProps) {
   const [selectedProvider, setSelectedProvider] = useState<ProviderKey>('openai');
-  const [selectedModel, setSelectedModel] = useState('gpt-4o-mini');
+  const [selectedModel, setSelectedModel] = useState('gpt-4.1-mini');
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [enabledTools, setEnabledTools] = useState<ToolName[]>(defaultTools);
 
   const {
     messages,
@@ -35,6 +38,7 @@ export function ChatInterface({ chatId, initialMessages = [] }: ChatInterfacePro
       provider: selectedProvider,
       model: selectedModel,
       systemPrompt,
+      enabledTools,
     },
     initialMessages,
     onError: (error) => {
@@ -55,13 +59,6 @@ export function ChatInterface({ chatId, initialMessages = [] }: ChatInterfacePro
     setSelectedModel(model);
   };
 
-  const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (input.trim()) {
-      handleSubmit(e);
-    }
-  };
-
   return (
     <div className="flex flex-col h-full max-h-screen">
       {/* Header with provider selector */}
@@ -70,11 +67,17 @@ export function ChatInterface({ chatId, initialMessages = [] }: ChatInterfacePro
           <h1 className="text-lg font-semibold">
             {chatId ? 'Chat' : 'New Chat'}
           </h1>
-          <ProviderSelector
-            selectedProvider={selectedProvider}
-            selectedModel={selectedModel}
-            onProviderChange={handleProviderChange}
-          />
+          <div className="flex items-center gap-3">
+            <ToolSelector
+              enabledTools={enabledTools}
+              onToolsChange={setEnabledTools}
+            />
+            <ProviderSelector
+              selectedProvider={selectedProvider}
+              selectedModel={selectedModel}
+              onProviderChange={handleProviderChange}
+            />
+          </div>
         </div>
         
         {/* System prompt input */}
@@ -124,9 +127,10 @@ export function ChatInterface({ chatId, initialMessages = [] }: ChatInterfacePro
         <ChatInput
           input={input}
           handleInputChange={handleInputChange}
-          handleSubmit={handleFormSubmit}
+          handleSubmit={handleSubmit}
           isLoading={isLoading}
           onStop={stop}
+          chatId={chatId}
         />
       </div>
     </div>

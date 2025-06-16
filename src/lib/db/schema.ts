@@ -70,6 +70,7 @@ export const messages = pgTable('messages', {
   model: varchar('model', { length: 100 }),
   usage: jsonb('usage'), // Token usage information
   finishReason: varchar('finish_reason', { length: 50 }),
+  metadata: jsonb('metadata').default('{}'), // Additional metadata including experimental_attachments
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   // For future semantic search
   contentVector: text('content_vector'), // Will be vector type when pgvector is added

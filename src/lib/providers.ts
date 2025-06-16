@@ -52,6 +52,15 @@ export const providers: Record<ProviderKey, Provider> = {
         supportsTools: true,
         costPer1kTokens: { input: 0.00015, output: 0.0006 }
       },
+      'gpt-4.1-mini': {
+        id: 'gpt-4.1-mini',
+        name: 'GPT-4.1 Mini',
+        description: 'Fast and efficient GPT-4 model for most tasks',
+        maxTokens: 128000,
+        supportsVision: true,
+        supportsTools: true,
+        costPer1kTokens: { input: 0.00015, output: 0.0006 }
+      },
       'gpt-3.5-turbo': {
         id: 'gpt-3.5-turbo',
         name: 'GPT-3.5 Turbo',
@@ -223,7 +232,7 @@ export function getDefaultModel(): { providerId: ProviderKey; modelId: string } 
   
   // Prefer OpenAI GPT-4o-mini as default if available
   if (apiKeys.openai) {
-    return { providerId: 'openai', modelId: 'gpt-4o-mini' };
+    return { providerId: 'openai', modelId: 'gpt-4.1-mini' };
   }
   
   // Fall back to Claude 3.5 Haiku
