@@ -1,0 +1,141 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth-server';
+import {
+  getUserApiKeys,
+  getUserApiKey,
+  createUserApiKey,
+  updateUserApiKey,
+  deleteUserApiKey,
+  setApiKeyValidationStatus
+} from '@/lib/db/queries';
+import { encryptApiKey, decryptApiKey, maskApiKey } from '@/lib/crypto';
+import type { ProviderType } from '@/lib/db/types';
+
+// GET /api/user/api-keys - Get all API keys for the current user
+export async function GET() {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const apiKeys = await getUserApiKeys(user.id);
+
+    // Return masked API keys for security
+    const maskedApiKeys = apiKeys.map(key => ({
+      ...key,
+      encryptedApiKey: undefined, // Never return the encrypted key
+      maskedApiKey: key.encryptedApiKey ? maskApiKey('****') : null, // Just show it exists
+      hasApiKey: !!key.encryptedApiKey,
+    }));
+
+    return NextResponse.json({ apiKeys: maskedApiKeys });
+  } catch (error) {
+    console.error('Error fetching API keys:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+// POST /api/user/api-keys - Save or update an API key
+export async function POST(request: NextRequest) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { provider, apiKey, metadata } = await request.json();
+
+    if (!provider || !apiKey) {
+      return NextResponse.json({
+        error: 'Provider and API key are required'
+      }, { status: 400 });
+    }
+
+    // Validate provider type
+    const validProviders: ProviderType[] = [
+      'openai', 'anthropic', 'google', 'openrouter', 'deepseek', 'togetherai', 'groq', 'mistral'
+    ];
+
+    if (!validProviders.includes(provider)) {
+      return NextResponse.json({
+        error: 'Invalid provider'
+      }, { status: 400 });
+    }
+
+    // Encrypt the API key
+    const encryptedApiKey = encryptApiKey(apiKey);
+
+    // Check if API key already exists for this provider
+    const existingKey = await getUserApiKey(user.id, provider);
+
+    let savedKey;
+    if (existingKey) {
+      // Update existing API key
+      savedKey = await updateUserApiKey(user.id, provider, {
+        encryptedApiKey,
+        metadata: metadata || {},
+        validationStatus: 'pending',
+        isActive: true,
+      });
+    } else {
+      // Create new API key
+      savedKey = await createUserApiKey({
+        userId: user.id,
+        provider,
+        encryptedApiKey,
+        metadata: metadata || {},
+        validationStatus: 'pending',
+        isActive: true,
+      });
+    }
+
+    // Return the saved key without the encrypted value
+    return NextResponse.json({
+      apiKey: {
+        ...savedKey,
+        encryptedApiKey: undefined,
+        hasApiKey: true,
+        maskedApiKey: maskApiKey(apiKey),
+      }
+    });
+  } catch (error) {
+    console.error('Error saving API key:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+// DELETE /api/user/api-keys - Delete an API key
+export async function DELETE(request: NextRequest) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const provider = searchParams.get('provider') as ProviderType;
+
+    if (!provider) {
+      return NextResponse.json({
+        error: 'Provider is required'
+      }, { status: 400 });
+    }
+
+    const deletedKey = await deleteUserApiKey(user.id, provider);
+
+    if (!deletedKey) {
+      return NextResponse.json({
+        error: 'API key not found'
+      }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      message: 'API key deleted successfully',
+      provider
+    });
+  } catch (error) {
+    console.error('Error deleting API key:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}

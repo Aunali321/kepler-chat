@@ -1,7 +1,7 @@
 import { streamText, convertToCoreMessages, type CoreMessage, type Attachment } from 'ai';
 import { z } from 'zod';
 import { requireAuthApi } from '@/lib/auth-server';
-import { getModelInstance, getModelConfig, getDefaultModel } from '@/lib/providers';
+import { providerManager } from '@/lib/provider-manager';
 import { getAvailableTools, defaultTools, isToolAvailable, type ToolName } from '@/lib/tools';
 import { 
   getChatById, 
@@ -90,7 +90,11 @@ export async function POST(req: Request) {
       model = requestedModel;
     } else {
       // Use default model if not specified
-      const defaultModel = getDefaultModel();
+      await providerManager.initialize(userId);
+      const defaultModel = await providerManager.getDefaultModel(userId);
+      if (!defaultModel) {
+        return new Response('No available AI providers. Please configure API keys in settings.', { status: 400 });
+      }
       provider = defaultModel.providerId;
       model = defaultModel.modelId;
     }
@@ -122,8 +126,21 @@ export async function POST(req: Request) {
     }
 
     // 5. Get model instance and configuration
-    const modelInstance = getModelInstance(provider as any, model);
-    const modelConfig = getModelConfig(provider as any, model);
+    await providerManager.initialize(userId);
+    const modelInstance = await providerManager.getModelInstance(userId, provider as any, model);
+    
+    // Get model configuration from provider manager
+    const providerConfig = await providerManager.getProviderConfig(userId, provider as any);
+    if (!providerConfig) {
+      return new Response('Provider configuration not found', { status: 400 });
+    }
+    
+    const modelConfig = [...providerConfig.availableModels, ...providerConfig.customModels]
+      .find(m => m.id === model);
+    
+    if (!modelConfig) {
+      return new Response('Model configuration not found', { status: 400 });
+    }
 
     // 6. Prepare messages for the AI model
     // Convert chat history to Message format (filter valid roles)
@@ -324,8 +341,8 @@ function calculateCost(
   promptTokens: number,
   completionTokens: number
 ): number {
-  const inputCost = (promptTokens / 1000) * modelConfig.costPer1kTokens.input;
-  const outputCost = (completionTokens / 1000) * modelConfig.costPer1kTokens.output;
+  const inputCost = (promptTokens / 1000) * modelConfig.costPer1kInputTokens;
+  const outputCost = (completionTokens / 1000) * modelConfig.costPer1kOutputTokens;
   return inputCost + outputCost;
 }
 

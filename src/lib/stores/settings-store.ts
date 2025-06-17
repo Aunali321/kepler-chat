@@ -12,12 +12,20 @@ export interface SettingsState {
   chatSettings: unknown;
   uiSettings: unknown;
   notificationSettings: unknown;
-  
+
+  // Provider-related settings
+  providerSettings: {
+    autoValidateApiKeys: boolean;
+    showProviderCosts: boolean;
+    enableModelFallback: boolean;
+    fallbackOrder: string[];
+  };
+
   // Loading states
   isLoading: boolean;
   isSaving: boolean;
   hasChanges: boolean;
-  
+
   // Actions
   loadPreferences: () => Promise<void>;
   savePreferences: () => Promise<void>;
@@ -25,6 +33,7 @@ export interface SettingsState {
   updateChatSetting: (key: string, value: any) => void;
   updateUISetting: (key: string, value: any) => void;
   updateNotificationSetting: (key: string, value: any) => void;
+  updateProviderSetting: (key: string, value: any) => void;
   resetChanges: () => void;
   applyTheme: () => void;
 }
@@ -32,7 +41,7 @@ export interface SettingsState {
 const defaultPreferences = {
   theme: 'system',
   language: 'en',
-  defaultModel: 'gpt-4o-mini',
+  defaultModel: 'gpt-4.1-mini',
   defaultProvider: 'openai',
   chatSettings: {
     autoSave: true,
@@ -48,6 +57,12 @@ const defaultPreferences = {
     chatNotifications: true,
     shareNotifications: true,
     emailNotifications: false,
+  },
+  providerSettings: {
+    autoValidateApiKeys: true,
+    showProviderCosts: true,
+    enableModelFallback: true,
+    fallbackOrder: ['openai', 'anthropic', 'google', 'openrouter'],
   },
 };
 
@@ -70,7 +85,7 @@ export const useSettingsStore = create<SettingsState>()(
         if (isLoadingPreferences || hasLoadedPreferences) {
           return;
         }
-        
+
         isLoadingPreferences = true;
         set((state) => {
           state.isLoading = true;
@@ -85,9 +100,9 @@ export const useSettingsStore = create<SettingsState>()(
               state.isLoading = false;
               state.hasChanges = false;
             });
-            
+
             hasLoadedPreferences = true;
-            
+
             // Apply theme immediately after loading
             get().applyTheme();
           } else {
@@ -114,7 +129,7 @@ export const useSettingsStore = create<SettingsState>()(
 
         try {
           const { isLoading, isSaving, hasChanges, ...preferences } = state;
-          
+
           const response = await fetch('/api/user/preferences', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -126,7 +141,7 @@ export const useSettingsStore = create<SettingsState>()(
               state.hasChanges = false;
               state.isSaving = false;
             });
-            
+
             // Apply theme after saving
             get().applyTheme();
           } else {
@@ -181,6 +196,17 @@ export const useSettingsStore = create<SettingsState>()(
         });
       },
 
+      // Update provider settings
+      updateProviderSetting: (key, value) => {
+        set((state) => {
+          state.providerSettings = {
+            ...(state.providerSettings as object || {}),
+            [key]: value,
+          };
+          state.hasChanges = true;
+        });
+      },
+
       // Reset changes to last saved state
       resetChanges: () => {
         set((state) => {
@@ -219,13 +245,13 @@ export const useThemeWatcher = () => {
 
   if (typeof window !== 'undefined' && theme === 'system') {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    
+
     const handleChange = () => {
       applyTheme();
     };
 
     mediaQuery.addEventListener('change', handleChange);
-    
+
     // Cleanup function
     return () => {
       mediaQuery.removeEventListener('change', handleChange);

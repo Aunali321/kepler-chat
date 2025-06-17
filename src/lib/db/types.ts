@@ -1,17 +1,20 @@
 import { InferSelectModel, InferInsertModel } from 'drizzle-orm';
-import { 
-  users, 
-  chats, 
-  messages, 
-  files, 
-  customTools, 
-  usageMetrics, 
+import {
+  users,
+  chats,
+  messages,
+  files,
+  customTools,
+  usageMetrics,
   sessions,
   chatFolders,
   chatTags,
   chatTagRelations,
   chatShares,
-  userPreferences
+  userPreferences,
+  userApiKeys,
+  userCustomModels,
+  userProviderPreferences
 } from './schema';
 
 // Infer types from Drizzle schema
@@ -51,6 +54,15 @@ export type NewChatShare = InferInsertModel<typeof chatShares>;
 export type UserPreferences = InferSelectModel<typeof userPreferences>;
 export type NewUserPreferences = InferInsertModel<typeof userPreferences>;
 
+export type UserApiKey = InferSelectModel<typeof userApiKeys>;
+export type NewUserApiKey = InferInsertModel<typeof userApiKeys>;
+
+export type UserCustomModel = InferSelectModel<typeof userCustomModels>;
+export type NewUserCustomModel = InferInsertModel<typeof userCustomModels>;
+
+export type UserProviderPreference = InferSelectModel<typeof userProviderPreferences>;
+export type NewUserProviderPreference = InferInsertModel<typeof userProviderPreferences>;
+
 // Message role enum
 export type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
 
@@ -62,6 +74,39 @@ export type Theme = 'light' | 'dark' | 'system';
 
 // Permission enum
 export type SharePermission = 'read' | 'comment' | 'edit';
+
+// Provider enum
+export type ProviderType = 'openai' | 'anthropic' | 'google' | 'openrouter' | 'deepseek' | 'togetherai' | 'groq' | 'mistral';
+
+// API key validation status
+export type ValidationStatus = 'pending' | 'valid' | 'invalid';
+
+// Provider configuration with API key and models
+export type ProviderConfig = {
+  provider: ProviderType;
+  isEnabled: boolean;
+  hasApiKey: boolean;
+  apiKeyValid: boolean;
+  defaultModel?: string;
+  availableModels: ModelConfig[];
+  customModels: UserCustomModel[];
+};
+
+// Model configuration
+export type ModelConfig = {
+  id: string;
+  displayName: string;
+  description?: string;
+  maxTokens: number;
+  supportsVision: boolean;
+  supportsTools: boolean;
+  supportsAudio: boolean;
+  supportsVideo: boolean;
+  supportsDocument: boolean;
+  costPer1kInputTokens: number;
+  costPer1kOutputTokens: number;
+  isCustom: boolean;
+};
 
 // Chat with related data
 export type ChatWithMessages = Chat & {

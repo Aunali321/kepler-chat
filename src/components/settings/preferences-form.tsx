@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Save, Palette, Globe, Settings, Bell } from 'lucide-react';
+import { Save, Palette, Globe, Settings, Bell, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { useSettingsStore } from '@/lib/stores/settings-store';
+import { ProviderSettings } from './provider-settings';
 
 export function PreferencesForm() {
   const {
@@ -226,6 +227,15 @@ export function PreferencesForm() {
             </div>
           </div>
         </div>
+      </Card>
+
+      {/* AI Service Providers */}
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4 flex items-center">
+          <Bot className="w-5 h-5 mr-2" />
+          AI Service Providers
+        </h3>
+        <ProviderSettings />
       </Card>
 
       {/* Notifications */}

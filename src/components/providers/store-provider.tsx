@@ -6,6 +6,7 @@ import { NotificationProvider } from '@/components/ui/notification-provider';
 import { DynamicStyles } from '@/components/ui/dynamic-styles';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { useSettingsStore } from '@/lib/stores/settings-store';
+import { useProviderStore } from '@/lib/stores/provider-store';
 import { initializeChatData } from '@/lib/stores/chat-data-store';
 
 interface StoreProviderProps {
@@ -15,6 +16,7 @@ interface StoreProviderProps {
 export function StoreProvider({ children }: StoreProviderProps) {
   const { initialize: initializeUI, loadFromSettings: loadUISettings } = useUIStore();
   const { loadPreferences: loadSettings } = useSettingsStore();
+  const { loadProviders } = useProviderStore();
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -28,6 +30,10 @@ export function StoreProvider({ children }: StoreProviderProps) {
         await loadUISettings();
         console.log('✅ UI settings loaded');
         
+        // Load provider configurations
+        await loadProviders();
+        console.log('✅ Provider configurations loaded');
+        
         // Initialize UI store for responsive detection
         initializeUI();
         console.log('✅ UI store initialized');
@@ -39,7 +45,7 @@ export function StoreProvider({ children }: StoreProviderProps) {
     };
     
     initializeApp();
-  }, [initializeUI, loadSettings, loadUISettings]);
+  }, [initializeUI, loadSettings, loadUISettings, loadProviders]);
 
   return (
     <ThemeProvider>

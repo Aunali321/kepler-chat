@@ -13,7 +13,7 @@ The application will function as a Claude.ai-style chat app, supporting multiple
 This platform will implement the full range of features supported by the Vercel AI SDK and necessary for a production-grade application.
 
 ### Core AI SDK Features
-- **Multi-Provider Chat**: Seamlessly switch between OpenAI, Anthropic, Google, and OpenRouter, using the SDK's unified API to access hundreds of models.
+- **Multi-Provider Chat**: Seamlessly switch between OpenAI, Anthropic, Google, and OpenRouter with user-configurable API keys. Each user manages their own provider credentials and preferences through a comprehensive settings interface.
 - **Streaming Chat Responses**: Real-time token-by-token streaming for a responsive user experience, managed by the `useChat` hook.
 - **Multi-modal Capabilities**: Handle text, images (both user-uploaded and AI-generated), PDFs, and audio. File attachments will be managed via `experimental_attachments`.
 - **Tool/Function Calling**: Define and execute custom tools on both the client and server. The SDK will manage schema validation, execution, and feeding results back to the model.
@@ -29,7 +29,7 @@ This platform will implement the full range of features supported by the Vercel 
 - **Real-time Collaboration**: WebSocket integration for shared chats and live collaboration features.
 - **Advanced Chat Management**: Organize chats into folders, search conversations, and export history.
 - **File Upload & Storage**: Secure file uploads (images, documents) stored in Cloudflare R2 object storage.
-- **Custom Model Configurations**: Allow users to configure model parameters for their chats.
+- **Custom Model Configurations**: Allow users to configure model parameters, add custom models, and manage provider preferences through an intuitive settings interface.
 - **Usage Analytics**: Track token usage and cost estimates per user and chat.
 - **Custom Tool Plugin Architecture**: A registry for users to define and manage their own custom tools.
 - **RAG Integration**: Foundation for future retrieval-augmented generation with document search capabilities.
@@ -191,7 +191,119 @@ CREATE TABLE usage_metrics (
 );
 ```
 
-## 6. API Routes Structure
+## 6. User-Configurable Provider System
+
+The platform implements a comprehensive user-configurable provider system that allows each user to manage their own AI provider credentials, preferences, and custom models through a secure, encrypted storage system.
+
+### Provider Architecture
+
+Instead of relying on server-side environment variables, the platform stores user API keys securely in the database with encryption:
+
+```typescript
+// lib/provider-manager.ts
+export class ProviderManager {
+  private userApiKeys: Map<ProviderType, string> = new Map();
+  private userPreferences: Map<ProviderType, any> = new Map();
+  private userCustomModels: Map<ProviderType, ModelConfig[]> = new Map();
+
+  async initialize(userId: string): Promise<void> {
+    // Load user's encrypted API keys and decrypt them
+    const apiKeys = await getUserApiKeys(userId);
+    apiKeys.forEach(apiKey => {
+      if (apiKey.validationStatus === 'valid') {
+        const decryptedKey = decryptApiKey(apiKey.encryptedApiKey);
+        this.userApiKeys.set(apiKey.provider, decryptedKey);
+      }
+    });
+    
+    // Load user preferences and custom models
+    // ...
+  }
+
+  async getModelInstance(userId: string, provider: ProviderType, modelId: string) {
+    const apiKey = this.userApiKeys.get(provider);
+    if (!apiKey) {
+      throw new Error(`No valid API key for provider ${provider}`);
+    }
+    
+    // Create provider instance with user's API key
+    switch (provider) {
+      case 'openai':
+        return openai(modelId, { apiKey });
+      case 'anthropic':
+        return anthropic(modelId, { apiKey });
+      // ...
+    }
+  }
+}
+```
+
+### Security Features
+
+- **API Key Encryption**: All user API keys are encrypted using AES-256-GCM before storage
+- **Key Validation**: API keys are validated against provider APIs before being marked as active
+- **Secure Transmission**: Keys are only decrypted in memory during model instantiation
+- **Access Control**: Users can only access their own provider configurations
+
+### Provider Settings Interface
+
+Users can manage their providers through a comprehensive settings interface:
+
+- **API Key Management**: Add, validate, and remove API keys for each provider
+- **Provider Preferences**: Enable/disable providers and set default models
+- **Custom Models**: Add custom model configurations with specific parameters
+- **Usage Monitoring**: View token usage and cost estimates per provider
+
+### Database Schema for Provider Configuration
+
+```sql
+-- User API Keys (encrypted)
+CREATE TABLE user_api_keys (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider VARCHAR(50) NOT NULL,
+  encrypted_api_key TEXT NOT NULL,
+  validation_status VARCHAR(20) DEFAULT 'pending',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, provider)
+);
+
+-- User Provider Preferences
+CREATE TABLE user_provider_preferences (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider VARCHAR(50) NOT NULL,
+  is_enabled BOOLEAN DEFAULT false,
+  default_model VARCHAR(100),
+  settings JSONB DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, provider)
+);
+
+-- User Custom Models
+CREATE TABLE user_custom_models (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider VARCHAR(50) NOT NULL,
+  model_id VARCHAR(100) NOT NULL,
+  display_name VARCHAR(200) NOT NULL,
+  description TEXT,
+  max_tokens INTEGER DEFAULT 4096,
+  supports_vision BOOLEAN DEFAULT false,
+  supports_tools BOOLEAN DEFAULT false,
+  supports_audio BOOLEAN DEFAULT false,
+  supports_video BOOLEAN DEFAULT false,
+  supports_document BOOLEAN DEFAULT false,
+  cost_per_1k_input_tokens DECIMAL(10, 6) DEFAULT 0,
+  cost_per_1k_output_tokens DECIMAL(10, 6) DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, provider, model_id)
+);
+```
+
+## 7. API Routes Structure
 
 ### Core Chat API (`/api/chat/route.ts`)
 This is the central endpoint for all chat interactions. It authenticates the user, retrieves context, defines tools, calls the AI SDK, and streams the response.
@@ -201,7 +313,7 @@ This is the central endpoint for all chat interactions. It authenticates the use
 import { streamText, convertToCoreMessages, tool } from 'ai';
 import { z } from 'zod';
 import { auth } from '@/lib/auth'; // BetterAuth instance
-import { getModelForProvider } from '@/lib/providers';
+import { providerManager } from '@/lib/provider-manager';
 import { saveChatMessage, getChatHistory } from '@/lib/database';
 import { webSearch, generateImageTool, analyzeDocument } from '@/lib/tools';
 
@@ -217,8 +329,9 @@ export async function POST(req: Request) {
     const { messages, chatId, provider, modelConfig } = await req.json();
     const userId = session.user.id;
     
-    // Dynamically select model based on user config or message content
-    const model = getModelForProvider(provider, modelConfig);
+    // Get model instance using user's configured API keys
+    await providerManager.initialize(userId);
+    const model = await providerManager.getModelInstance(userId, provider, modelConfig.model);
     
     // Load relevant chat history for context
     const chatHistory = await getChatHistory(chatId, userId);
@@ -278,7 +391,7 @@ export async function POST(req: Request) { /* ... */ }
 export async function POST(req: Request) { /* ... */ }
 ```
 
-## 7. User Flow
+## 8. User Flow
 
 1.  **Authentication**: A new user signs up or logs in via the BetterAuth-powered UI. A secure session cookie is established.
 2.  **Load Chat History**: Upon login, the app fetches the user's past conversations from PostgreSQL using their `userId`. The `useChat` hook is initialized with this history.
@@ -289,7 +402,7 @@ export async function POST(req: Request) { /* ... */ }
 7.  **Persistence**: Once the stream is complete, the `onFinish` callback on the server saves the final user message and assistant response to the PostgreSQL database, including any file URLs or tool invocation data.
 8.  **Synchronization**: The user's chat history is now up-to-date and will be available on any device they log into.
 
-## 8. Component Hierarchy & UI/UX
+## 9. Component Hierarchy & UI/UX
 
 The frontend will be built with React, Next.js App Router, and `shadcn/ui` for accessible, pre-styled components.
 
@@ -320,7 +433,9 @@ src/
 └── lib/
     ├── auth.ts                 # BetterAuth configuration
     ├── database.ts             # Kysely or Prisma DB client and queries
-    ├── providers.ts            # AI provider management
+    ├── provider-manager.ts     # User-configurable AI provider management
+    ├── crypto.ts               # API key encryption utilities
+    ├── api-key-validator.ts    # API key validation
     ├── r2-storage.ts           # Cloudflare R2 helper functions
     └── tools.ts                # Tool definitions
 ```
@@ -331,7 +446,7 @@ src/
 *   **Message Rendering**: The `MessageRenderer` component will inspect the `message.parts` array (a Vercel AI SDK v3 feature) to correctly display different content types within a single message bubble. `contentType: 'image'` becomes an `<img>` tag, `tool-call` renders a loading state, and `tool-result` displays the formatted output.
 *   **Status & Error Feedback**: The UI will use the `status` and `error` properties from `useChat` to provide clear user feedback, such as loading indicators, streaming animations, and non-technical error messages with a "Retry" option.
 
-## 9. File Storage & Handling (Cloudflare R2)
+## 10. File Storage & Handling (Cloudflare R2)
 
 We will implement a robust file handling system using Cloudflare R2 for cost-effective, scalable storage.
 
@@ -366,7 +481,7 @@ export async function getPresignedUploadUrl(key: string, contentType: string): P
 }
 ```
 
-## 10. Edge Cases & Fallbacks
+## 11. Edge Cases & Fallbacks
 
 *   **Model Failures**: If an LLM API call fails (e.g., rate limit, server error), the API route will catch the error, log it, and return a user-friendly error message. A "Retry" button in the UI will allow the user to resubmit the last message.
 *   **Unsupported Attachments**: The file input will have client-side validation for file types and size. The server will also validate attachments; if an unsuitable file is sent to a model (e.g., a video to GPT-4o), the API will either strip the attachment or return an informative error.
@@ -375,9 +490,9 @@ export async function getPresignedUploadUrl(key: string, contentType: string): P
 *   **Session Expiry**: If a user's session expires mid-chat, the client will detect the 401 response, preserve the current input in local storage, and prompt the user to log in again before resubmitting.
 *   **Context Length Limits**: For very long conversations, we will implement a strategy to truncate the message history sent to the LLM, sending only the most recent N messages to avoid exceeding the model's context window.
 
-## 11. Future-Proofing & Scalability
+## 12. Future-Proofing & Scalability
 
-*   **New Models & Providers**: The provider-based architecture of the Vercel AI SDK makes adding new models trivial. We can add a new provider package (e.g., `@ai-sdk/mistral`) and update our provider registry without changing core logic.
+*   **New Models & Providers**: The user-configurable provider architecture makes adding new models trivial. Users can add custom models through the settings interface, and administrators can add new provider packages (e.g., `@ai-sdk/mistral`) to the provider registry without affecting existing user configurations.
 *   **Plugin Architecture**: The `custom_tools` table and tool execution logic form the basis of a powerful plugin system, allowing the platform to be extended with new capabilities over time.
 *   **RAG (Retrieval-Augmented Generation)**: The `files` table and `analyzeDocument` tool are the first steps toward a full RAG system. We can later add a Vector DB (e.g., pgvector extension in PostgreSQL) to store embeddings of documents and chat messages for semantic search.
 *   **Observability**: The AI SDK has experimental support for OpenTelemetry. We can integrate this with services like Datadog or Sentry to monitor LLM performance, latency, token usage, and errors across the entire pipeline.

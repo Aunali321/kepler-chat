@@ -10,7 +10,10 @@ import {
   chatTags,
   chatTagRelations,
   chatShares,
-  userPreferences
+  userPreferences,
+  userApiKeys,
+  userCustomModels,
+  userProviderPreferences
 } from './schema';
 import type { 
   NewChat, 
@@ -22,7 +25,14 @@ import type {
   NewChatFolder,
   NewChatTag,
   NewChatShare,
-  NewUserPreferences
+  NewUserPreferences,
+  NewUserApiKey,
+  NewUserCustomModel,
+  NewUserProviderPreference,
+  UserApiKey,
+  UserCustomModel,
+  UserProviderPreference,
+  ProviderType
 } from './types';
 
 // User queries
@@ -535,4 +545,195 @@ export async function getOrganizedChats(userId: string) {
   }
 
   return organized;
+}
+
+// ======= API KEY MANAGEMENT QUERIES =======
+
+export async function getUserApiKeys(userId: string) {
+  return await db
+    .select()
+    .from(userApiKeys)
+    .where(eq(userApiKeys.userId, userId))
+    .orderBy(asc(userApiKeys.provider));
+}
+
+export async function getUserApiKey(userId: string, provider: ProviderType) {
+  const [apiKey] = await db
+    .select()
+    .from(userApiKeys)
+    .where(and(
+      eq(userApiKeys.userId, userId),
+      eq(userApiKeys.provider, provider)
+    ));
+  return apiKey;
+}
+
+export async function createUserApiKey(data: NewUserApiKey) {
+  const [apiKey] = await db
+    .insert(userApiKeys)
+    .values(data)
+    .returning();
+  return apiKey;
+}
+
+export async function updateUserApiKey(userId: string, provider: ProviderType, data: Partial<NewUserApiKey>) {
+  const [apiKey] = await db
+    .update(userApiKeys)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(
+      eq(userApiKeys.userId, userId),
+      eq(userApiKeys.provider, provider)
+    ))
+    .returning();
+  return apiKey;
+}
+
+export async function deleteUserApiKey(userId: string, provider: ProviderType) {
+  const [apiKey] = await db
+    .delete(userApiKeys)
+    .where(and(
+      eq(userApiKeys.userId, userId),
+      eq(userApiKeys.provider, provider)
+    ))
+    .returning();
+  return apiKey;
+}
+
+export async function setApiKeyValidationStatus(userId: string, provider: ProviderType, status: 'valid' | 'invalid' | 'pending') {
+  const [apiKey] = await db
+    .update(userApiKeys)
+    .set({ 
+      validationStatus: status,
+      lastValidated: new Date(),
+      updatedAt: new Date()
+    })
+    .where(and(
+      eq(userApiKeys.userId, userId),
+      eq(userApiKeys.provider, provider)
+    ))
+    .returning();
+  return apiKey;
+}
+
+// ======= CUSTOM MODEL MANAGEMENT QUERIES =======
+
+export async function getUserCustomModels(userId: string, provider?: ProviderType) {
+  const conditions = [eq(userCustomModels.userId, userId)];
+  if (provider) {
+    conditions.push(eq(userCustomModels.provider, provider));
+  }
+  
+  return await db
+    .select()
+    .from(userCustomModels)
+    .where(and(...conditions))
+    .orderBy(asc(userCustomModels.provider), asc(userCustomModels.displayName));
+}
+
+export async function getUserCustomModel(userId: string, modelId: string) {
+  const [model] = await db
+    .select()
+    .from(userCustomModels)
+    .where(and(
+      eq(userCustomModels.userId, userId),
+      eq(userCustomModels.id, modelId)
+    ));
+  return model;
+}
+
+export async function createUserCustomModel(data: NewUserCustomModel) {
+  const [model] = await db
+    .insert(userCustomModels)
+    .values(data)
+    .returning();
+  return model;
+}
+
+export async function updateUserCustomModel(userId: string, modelId: string, data: Partial<NewUserCustomModel>) {
+  const [model] = await db
+    .update(userCustomModels)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(
+      eq(userCustomModels.userId, userId),
+      eq(userCustomModels.id, modelId)
+    ))
+    .returning();
+  return model;
+}
+
+export async function deleteUserCustomModel(userId: string, modelId: string) {
+  const [model] = await db
+    .delete(userCustomModels)
+    .where(and(
+      eq(userCustomModels.userId, userId),
+      eq(userCustomModels.id, modelId)
+    ))
+    .returning();
+  return model;
+}
+
+// ======= PROVIDER PREFERENCE QUERIES =======
+
+export async function getUserProviderPreferences(userId: string) {
+  return await db
+    .select()
+    .from(userProviderPreferences)
+    .where(eq(userProviderPreferences.userId, userId))
+    .orderBy(asc(userProviderPreferences.provider));
+}
+
+export async function getUserProviderPreference(userId: string, provider: ProviderType) {
+  const [preference] = await db
+    .select()
+    .from(userProviderPreferences)
+    .where(and(
+      eq(userProviderPreferences.userId, userId),
+      eq(userProviderPreferences.provider, provider)
+    ));
+  return preference;
+}
+
+export async function createUserProviderPreference(data: NewUserProviderPreference) {
+  const [preference] = await db
+    .insert(userProviderPreferences)
+    .values(data)
+    .returning();
+  return preference;
+}
+
+export async function updateUserProviderPreference(userId: string, provider: ProviderType, data: Partial<NewUserProviderPreference>) {
+  const [preference] = await db
+    .update(userProviderPreferences)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(
+      eq(userProviderPreferences.userId, userId),
+      eq(userProviderPreferences.provider, provider)
+    ))
+    .returning();
+  return preference;
+}
+
+export async function deleteUserProviderPreference(userId: string, provider: ProviderType) {
+  const [preference] = await db
+    .delete(userProviderPreferences)
+    .where(and(
+      eq(userProviderPreferences.userId, userId),
+      eq(userProviderPreferences.provider, provider)
+    ))
+    .returning();
+  return preference;
+}
+
+export async function getOrCreateUserProviderPreference(userId: string, provider: ProviderType) {
+  let preference = await getUserProviderPreference(userId, provider);
+  
+  if (!preference) {
+    preference = await createUserProviderPreference({ 
+      userId, 
+      provider,
+      isEnabled: false // Default to disabled until API key is added
+    });
+  }
+  
+  return preference;
 }

@@ -8,19 +8,19 @@ export interface ChatSettings {
   // Provider and model selection
   selectedProvider: ProviderKey;
   selectedModel: string;
-  
+
   // System prompt
   systemPrompt: string;
-  
+
   // Tool configurations
   enabledTools: ToolName[];
   customTools: Record<string, any>;
-  
+
   // Chat parameters
   temperature: number;
   maxTokens: number;
   topP: number;
-  
+
   // UI preferences for chat
   showSystemPrompt: boolean;
   showTokenCount: boolean;
@@ -31,10 +31,10 @@ export interface ChatState extends ChatSettings {
   // Loading states
   isLoading: boolean;
   isGenerating: boolean;
-  
+
   // Current chat context
   currentChatId: string | null;
-  
+
   // Actions
   setProvider: (provider: ProviderKey) => void;
   setModel: (model: string) => void;
@@ -42,7 +42,7 @@ export interface ChatState extends ChatSettings {
   setTemperature: (temp: number) => void;
   setMaxTokens: (tokens: number) => void;
   setTopP: (topP: number) => void;
-  
+
   // Tool actions
   enableTool: (toolId: ToolName) => void;
   disableTool: (toolId: ToolName) => void;
@@ -50,17 +50,17 @@ export interface ChatState extends ChatSettings {
   setEnabledTools: (tools: ToolName[]) => void;
   setCustomTool: (toolId: string, config: any) => void;
   removeCustomTool: (toolId: string) => void;
-  
+
   // UI actions
   setShowSystemPrompt: (show: boolean) => void;
   setShowTokenCount: (show: boolean) => void;
   setStreamingEnabled: (enabled: boolean) => void;
-  
+
   // Chat actions
   setCurrentChatId: (chatId: string | null) => void;
   setIsLoading: (loading: boolean) => void;
   setIsGenerating: (generating: boolean) => void;
-  
+
   // Reset actions
   resetToDefaults: () => void;
   loadFromPreferences: () => void;
@@ -68,7 +68,7 @@ export interface ChatState extends ChatSettings {
 
 const defaultChatSettings: ChatSettings = {
   selectedProvider: 'openai',
-  selectedModel: 'gpt-4o-mini',
+  selectedModel: 'gpt-4.1-mini',
   systemPrompt: '',
   enabledTools: [],
   customTools: {},
@@ -96,13 +96,13 @@ export const useChatStore = create<ChatState>()(
           // Reset model to default for new provider
           switch (provider) {
             case 'openai':
-              state.selectedModel = 'gpt-4o-mini';
+              state.selectedModel = 'gpt-4.1-mini';
               break;
             case 'anthropic':
               state.selectedModel = 'claude-3-5-sonnet';
               break;
             case 'google':
-              state.selectedModel = 'gemini-pro';
+              state.selectedModel = 'google/gemini-2.5-flash-preview-05-20';
               break;
             case 'openrouter':
               state.selectedModel = 'gpt-4o-mini';
@@ -247,7 +247,7 @@ export const useChatStore = create<ChatState>()(
           if (response.ok) {
             const data = await response.json();
             const preferences = data.preferences;
-            
+
             set((state) => {
               if (preferences.defaultProvider) {
                 state.selectedProvider = preferences.defaultProvider;
@@ -255,7 +255,7 @@ export const useChatStore = create<ChatState>()(
               if (preferences.defaultModel) {
                 state.selectedModel = preferences.defaultModel;
               }
-              
+
               // Load chat settings from preferences
               const chatSettings = preferences.chatSettings || {};
               if (typeof chatSettings.streamingResponses === 'boolean') {

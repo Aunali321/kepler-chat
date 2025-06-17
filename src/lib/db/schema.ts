@@ -106,7 +106,7 @@ export const userPreferences = pgTable('user_preferences', {
   userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id, { onDelete: 'cascade' }).unique(),
   theme: varchar('theme', { length: 20 }).default('system'), // 'light', 'dark', 'system'
   language: varchar('language', { length: 10 }).default('en'),
-  defaultModel: varchar('default_model', { length: 100 }).default('gpt-4o-mini'),
+  defaultModel: varchar('default_model', { length: 100 }).default('gpt-4.1-mini'),
   defaultProvider: varchar('default_provider', { length: 50 }).default('openai'),
   chatSettings: jsonb('chat_settings').default('{}'), // Stream speed, auto-save, etc.
   uiSettings: jsonb('ui_settings').default('{}'), // Sidebar width, font size, etc.
@@ -181,6 +181,67 @@ export const files = pgTable('files', {
   r2KeyIdx: index('files_r2_key_idx').on(table.r2Key),
 }));
 
+// User API keys (encrypted storage)
+export const userApiKeys = pgTable('user_api_keys', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  provider: varchar('provider', { length: 50 }).notNull(), // 'openai', 'anthropic', 'google', 'openrouter', etc.
+  encryptedApiKey: text('encrypted_api_key').notNull(),
+  isActive: boolean('is_active').default(true),
+  lastValidated: timestamp('last_validated', { withTimezone: true }),
+  validationStatus: varchar('validation_status', { length: 20 }).default('pending'), // 'pending', 'valid', 'invalid'
+  metadata: jsonb('metadata').default('{}'), // Store additional provider-specific config
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  userIdIdx: index('user_api_keys_user_id_idx').on(table.userId),
+  providerIdx: index('user_api_keys_provider_idx').on(table.provider),
+  userProviderIdx: index('user_api_keys_user_provider_idx').on(table.userId, table.provider),
+}));
+
+// User custom models
+export const userCustomModels = pgTable('user_custom_models', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  provider: varchar('provider', { length: 50 }).notNull(),
+  modelId: varchar('model_id', { length: 100 }).notNull(),
+  displayName: varchar('display_name', { length: 100 }).notNull(),
+  description: text('description'),
+  maxTokens: bigint('max_tokens', { mode: 'number' }).default(4096),
+  supportsVision: boolean('supports_vision').default(false),
+  supportsTools: boolean('supports_tools').default(false),
+  supportsAudio: boolean('supports_audio').default(false),
+  supportsVideo: boolean('supports_video').default(false),
+  supportsDocument: boolean('supports_document').default(false),
+  costPer1kInputTokens: decimal('cost_per_1k_input_tokens', { precision: 10, scale: 6 }).default('0'),
+  costPer1kOutputTokens: decimal('cost_per_1k_output_tokens', { precision: 10, scale: 6 }).default('0'),
+  isActive: boolean('is_active').default(true),
+  metadata: jsonb('metadata').default('{}'), // Additional model parameters
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  userIdIdx: index('user_custom_models_user_id_idx').on(table.userId),
+  providerIdx: index('user_custom_models_provider_idx').on(table.provider),
+  userProviderIdx: index('user_custom_models_user_provider_idx').on(table.userId, table.provider),
+  modelIdIdx: index('user_custom_models_model_id_idx').on(table.modelId),
+}));
+
+// User provider preferences
+export const userProviderPreferences = pgTable('user_provider_preferences', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  provider: varchar('provider', { length: 50 }).notNull(),
+  isEnabled: boolean('is_enabled').default(true),
+  defaultModel: varchar('default_model', { length: 100 }),
+  settings: jsonb('settings').default('{}'), // Provider-specific settings
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  userIdIdx: index('user_provider_preferences_user_id_idx').on(table.userId),
+  providerIdx: index('user_provider_preferences_provider_idx').on(table.provider),
+  userProviderIdx: index('user_provider_preferences_user_provider_idx').on(table.userId, table.provider),
+}));
+
 // Custom tool registry for users
 export const customTools = pgTable('custom_tools', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -234,6 +295,9 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   chatSharesCreated: many(chatShares, { relationName: 'sharedBy' }),
   chatSharesReceived: many(chatShares, { relationName: 'sharedWith' }),
   preferences: one(userPreferences),
+  apiKeys: many(userApiKeys),
+  customModels: many(userCustomModels),
+  providerPreferences: many(userProviderPreferences),
 }));
 
 export const chatFoldersRelations = relations(chatFolders, ({ one, many }) => ({
@@ -360,6 +424,27 @@ export const verificationRelations = relations(verification, ({ one }) => ({
 export const accountRelations = relations(account, ({ one }) => ({
   user: one(users, {
     fields: [account.userId],
+    references: [users.id],
+  }),
+}));
+
+export const userApiKeysRelations = relations(userApiKeys, ({ one }) => ({
+  user: one(users, {
+    fields: [userApiKeys.userId],
+    references: [users.id],
+  }),
+}));
+
+export const userCustomModelsRelations = relations(userCustomModels, ({ one }) => ({
+  user: one(users, {
+    fields: [userCustomModels.userId],
+    references: [users.id],
+  }),
+}));
+
+export const userProviderPreferencesRelations = relations(userProviderPreferences, ({ one }) => ({
+  user: one(users, {
+    fields: [userProviderPreferences.userId],
     references: [users.id],
   }),
 }));

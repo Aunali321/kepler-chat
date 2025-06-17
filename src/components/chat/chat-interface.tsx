@@ -13,7 +13,7 @@ import { SearchDialog } from './search-dialog';
 import { ExportDialog } from './export-dialog';
 import { ShareDialog } from './share-dialog';
 import { Button } from '@/components/ui/button';
-import { providers, type ProviderKey } from '@/lib/providers';
+import { type ProviderKey } from '@/lib/providers';
 import { defaultTools, type ToolName } from '@/lib/tools';
 import { useChatStore } from '@/lib/stores/chat-store';
 import { useUIStore } from '@/lib/stores/ui-store';
@@ -26,7 +26,7 @@ interface ChatInterfaceProps {
 
 export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatInterfaceProps) {
   const router = useRouter();
-  
+
   // Chat store
   const {
     selectedProvider,
@@ -97,7 +97,7 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
         console.error('❌ Error loading chat preferences:', error);
       }
     };
-    
+
     initializeChatPreferences();
   }, [loadFromPreferences]);
 
@@ -146,7 +146,7 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
               <Search className="w-4 h-4" />
               Search
             </Button>
-            
+
             {chatId && (
               <>
                 <Button
@@ -158,7 +158,7 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
                   <Download className="w-4 h-4" />
                   Export
                 </Button>
-                
+
                 <Button
                   variant="outline"
                   size="sm"
@@ -170,7 +170,7 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
                 </Button>
               </>
             )}
-            
+
             <ToolSelector
               enabledTools={enabledTools}
               onToolsChange={handleToolsChange}
@@ -243,7 +243,7 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
         onClose={closeSearchDialog}
         onChatSelect={handleChatSelect}
       />
-      
+
       {chatId && (
         <>
           <ExportDialog
@@ -252,7 +252,7 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
             chatId={chatId}
             chatTitle={chatTitle || 'Chat'}
           />
-          
+
           <ShareDialog
             isOpen={shareDialogOpen}
             onClose={closeShareDialog}
