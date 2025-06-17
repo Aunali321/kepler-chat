@@ -2,11 +2,11 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import type { ToolName } from '@/lib/tools';
-import type { ProviderKey } from '@/lib/providers';
+import type { ProviderType } from '@/lib/db/types';
 
 export interface ChatSettings {
   // Provider and model selection
-  selectedProvider: ProviderKey;
+  selectedProvider: ProviderType;
   selectedModel: string;
 
   // System prompt
@@ -36,7 +36,7 @@ export interface ChatState extends ChatSettings {
   currentChatId: string | null;
 
   // Actions
-  setProvider: (provider: ProviderKey) => void;
+  setProvider: (provider: ProviderType) => void;
   setModel: (model: string) => void;
   setSystemPrompt: (prompt: string) => void;
   setTemperature: (temp: number) => void;
@@ -67,8 +67,8 @@ export interface ChatState extends ChatSettings {
 }
 
 const defaultChatSettings: ChatSettings = {
-  selectedProvider: 'openai',
-  selectedModel: 'gpt-4.1-mini',
+  selectedProvider: 'google',
+  selectedModel: 'gemini-1.5-flash',
   systemPrompt: '',
   enabledTools: [],
   customTools: {},
@@ -102,13 +102,13 @@ export const useChatStore = create<ChatState>()(
               state.selectedModel = 'claude-3-5-sonnet';
               break;
             case 'google':
-              state.selectedModel = 'gemini-2.5-flash';
+              state.selectedModel = 'gemini-2.0-flash';
               break;
             case 'openrouter':
-              state.selectedModel = 'gpt-4o-mini';
+              state.selectedModel = 'claude-3-5-sonnet';
               break;
             default:
-              state.selectedModel = 'gpt-4o-mini';
+              state.selectedModel = 'gemini-2.0-flash';
           }
         });
       },
@@ -154,20 +154,18 @@ export const useChatStore = create<ChatState>()(
 
       disableTool: (toolId) => {
         set((state) => {
-          const index = state.enabledTools.indexOf(toolId);
-          if (index !== -1) {
-            state.enabledTools.splice(index, 1);
-          }
+          state.enabledTools = state.enabledTools.filter(id => id !== toolId);
         });
       },
 
       toggleTool: (toolId) => {
-        const state = get();
-        if (state.enabledTools.includes(toolId)) {
-          state.disableTool(toolId);
-        } else {
-          state.enableTool(toolId);
-        }
+        set((state) => {
+          if (state.enabledTools.includes(toolId)) {
+            state.enabledTools = state.enabledTools.filter(id => id !== toolId);
+          } else {
+            state.enabledTools.push(toolId);
+          }
+        });
       },
 
       setEnabledTools: (tools) => {
@@ -185,12 +183,6 @@ export const useChatStore = create<ChatState>()(
       removeCustomTool: (toolId) => {
         set((state) => {
           delete state.customTools[toolId];
-          // Also disable the tool if it's enabled (only if it's a valid ToolName)
-          const toolName = toolId as ToolName;
-          const index = state.enabledTools.indexOf(toolName);
-          if (index !== -1) {
-            state.enabledTools.splice(index, 1);
-          }
         });
       },
 

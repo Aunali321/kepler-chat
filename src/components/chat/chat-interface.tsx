@@ -13,7 +13,7 @@ import { SearchDialog } from './search-dialog';
 import { ExportDialog } from './export-dialog';
 import { ShareDialog } from './share-dialog';
 import { Button } from '@/components/ui/button';
-import { type ProviderKey } from '@/lib/providers';
+import { type ProviderType } from '@/lib/db/types';
 import { defaultTools, type ToolName } from '@/lib/tools';
 import { useChatStore } from '@/lib/stores/chat-store';
 import { useUIStore } from '@/lib/stores/ui-store';
@@ -76,12 +76,36 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
     },
     initialMessages,
     onError: (error) => {
-      console.error('Chat error:', error);
+      console.error('=== CLIENT-SIDE CHAT ERROR ===');
+      console.error('Error object:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      console.error('Error type:', error.constructor.name);
+      console.error('Full error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      console.error('Current provider/model:', { selectedProvider, selectedModel });
       setIsGenerating(false);
     },
     onFinish: (message, { usage, finishReason }) => {
-      console.log('Message finished:', { usage, finishReason });
+      console.log('=== MESSAGE FINISHED SUCCESSFULLY ===');
+      console.log('Message:', message);
+      console.log('Usage:', usage);
+      console.log('Finish reason:', finishReason);
       setIsGenerating(false);
+    },
+    // Add fetch interceptor to debug streaming data
+    fetch: async (url, options) => {
+      console.log('=== FETCH REQUEST DEBUG ===');
+      console.log('URL:', url);
+      console.log('Options:', options);
+      
+      const response = await fetch(url, options);
+      
+      console.log('=== FETCH RESPONSE DEBUG ===');
+      console.log('Status:', response.status);
+      console.log('Headers:', Object.fromEntries(response.headers.entries()));
+      console.log('Response body stream available:', !!response.body);
+      
+      return response;
     },
   });
 
@@ -112,7 +136,7 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
     console.log('🎛️ Current chat settings:', { selectedProvider, selectedModel });
   }, [selectedProvider, selectedModel]);
 
-  const handleProviderChange = (provider: ProviderKey, model: string) => {
+  const handleProviderChange = (provider: ProviderType, model: string) => {
     setProvider(provider);
     setModel(model);
   };

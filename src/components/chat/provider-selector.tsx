@@ -5,22 +5,22 @@ import { Button } from '@/components/ui/button';
 import { ChevronDown, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useProviderStore } from '@/lib/stores/provider-store';
+import { useAuth } from '@/components/auth-provider';
 import type { ProviderType } from '@/lib/db/types';
 
 interface ProviderSelectorProps {
   selectedProvider: ProviderType;
   selectedModel: string;
   onProviderChange: (provider: ProviderType, model: string) => void;
-  userId: string;
 }
 
 export function ProviderSelector({
   selectedProvider,
   selectedModel,
   onProviderChange,
-  userId,
 }: ProviderSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const { user } = useAuth();
   const {
     providers,
     isLoading,
@@ -31,8 +31,10 @@ export function ProviderSelector({
 
   useEffect(() => {
     // Load providers when component mounts
-    loadProviders();
-  }, [loadProviders]);
+    if (user?.id) {
+      loadProviders();
+    }
+  }, [loadProviders, user?.id]);
 
   const availableProviders = getAvailableProviders();
   const currentProviderConfig = providers[selectedProvider];
