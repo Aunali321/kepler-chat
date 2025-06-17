@@ -2,7 +2,7 @@ import { requireAuth } from '@/lib/auth-server';
 import { getChatWithMessages } from '@/lib/db/queries';
 import { ChatInterface } from '@/components/chat/chat-interface';
 import { ChatSidebar } from '@/components/chat/chat-sidebar';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 
 interface ChatPageProps {
   params: Promise<{ id: string }>;
@@ -12,7 +12,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
   const { user } = await requireAuth();
   const { id } = await params;
 
-  // Get chat and messages
+  // Get chat and messages directly in Server Component
   const chatWithMessages = await getChatWithMessages(id, user.id);
   
   if (!chatWithMessages) {

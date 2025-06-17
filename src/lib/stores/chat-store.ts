@@ -102,7 +102,7 @@ export const useChatStore = create<ChatState>()(
               state.selectedModel = 'claude-3-5-sonnet';
               break;
             case 'google':
-              state.selectedModel = 'google/gemini-2.5-flash-preview-05-20';
+              state.selectedModel = 'gemini-2.5-flash';
               break;
             case 'openrouter':
               state.selectedModel = 'gpt-4o-mini';

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthApi } from '@/lib/auth-server';
-import { getFileById } from '@/lib/db/queries';
+import { getFileById, deleteFile } from '@/lib/db/queries';
 import { deleteFile as deleteFileFromR2 } from '@/lib/r2-storage';
-import { db } from '@/lib/db';
-import { files } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+
+// Force Node.js runtime for database access
+export const runtime = 'nodejs';
 
 export async function GET(
   request: NextRequest,
@@ -86,9 +86,7 @@ export async function DELETE(
     }
 
     // Delete file record from database
-    await db
-      .delete(files)
-      .where(and(eq(files.id, fileId), eq(files.userId, user.id)));
+    await deleteFile(fileId, user.id);
 
     return NextResponse.json({
       success: true,

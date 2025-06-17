@@ -165,6 +165,14 @@ export async function getFilesByUserId(userId: string) {
     .orderBy(desc(files.createdAt));
 }
 
+export async function deleteFile(fileId: string, userId: string) {
+  const [deletedFile] = await db
+    .delete(files)
+    .where(and(eq(files.id, fileId), eq(files.userId, userId)))
+    .returning();
+  return deletedFile;
+}
+
 // Usage metrics queries
 export async function createUsageMetric(data: NewUsageMetric) {
   const [metric] = await db.insert(usageMetrics).values(data).returning();

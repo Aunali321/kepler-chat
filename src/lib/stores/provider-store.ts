@@ -215,10 +215,14 @@ export const useProviderStore = create<ProviderState>()(
           if (response.ok) {
             const data = await response.json();
             set((state) => {
-              state.providers[provider].apiKeyValid = data.valid;
+              state.providers[provider].apiKeyValid = data.isValid;
               state.isValidating = false;
             });
-            return data.valid;
+            
+            // Reload providers to get updated validation status from server
+            await get().loadProviders();
+            
+            return data.isValid;
           } else {
             throw new Error('Failed to validate API key');
           }

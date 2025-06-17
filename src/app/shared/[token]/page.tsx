@@ -14,7 +14,7 @@ export default async function SharedChatPage({ params }: SharedChatPageProps) {
   const user = await getCurrentUser();
   
   try {
-    // Get share information
+    // Get share information directly in Server Component
     const share = await getChatShare(token);
     if (!share) {
       notFound();

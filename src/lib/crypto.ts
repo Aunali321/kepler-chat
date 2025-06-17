@@ -1,10 +1,9 @@
 import crypto from 'crypto';
 
 // Encryption configuration
-const ALGORITHM = 'aes-256-gcm';
+const ALGORITHM = 'aes-256-cbc';
 const KEY_LENGTH = 32; // 256 bits
 const IV_LENGTH = 16; // 128 bits
-const TAG_LENGTH = 16; // 128 bits
 
 /**
  * Get or generate the encryption key from environment variable
@@ -40,19 +39,15 @@ export function encryptApiKey(plaintext: string): string {
     const key = getEncryptionKey();
     const iv = crypto.randomBytes(IV_LENGTH);
     
-    const cipher = crypto.createCipherGCM(ALGORITHM, key, iv);
-    cipher.setAAD(Buffer.from('api-key')); // Additional authenticated data
+    const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
     
     let encrypted = cipher.update(plaintext, 'utf8', 'hex');
     encrypted += cipher.final('hex');
     
-    const tag = cipher.getAuthTag();
-    
-    // Combine IV + encrypted data + auth tag
+    // Combine IV + encrypted data
     const combined = Buffer.concat([
       iv,
-      Buffer.from(encrypted, 'hex'),
-      tag
+      Buffer.from(encrypted, 'hex')
     ]);
     
     return combined.toString('base64');
@@ -72,12 +67,9 @@ export function decryptApiKey(encryptedData: string): string {
     
     // Extract components
     const iv = combined.subarray(0, IV_LENGTH);
-    const encrypted = combined.subarray(IV_LENGTH, combined.length - TAG_LENGTH);
-    const tag = combined.subarray(combined.length - TAG_LENGTH);
+    const encrypted = combined.subarray(IV_LENGTH);
     
-    const decipher = crypto.createDecipherGCM(ALGORITHM, key, iv);
-    decipher.setAAD(Buffer.from('api-key')); // Must match AAD from encryption
-    decipher.setAuthTag(tag);
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
     
     let decrypted = decipher.update(encrypted, undefined, 'utf8');
     decrypted += decipher.final('utf8');
@@ -125,8 +117,8 @@ export function hashString(input: string): string {
 export function isValidEncryptedFormat(encryptedData: string): boolean {
   try {
     const combined = Buffer.from(encryptedData, 'base64');
-    // Check minimum length: IV + some encrypted data + auth tag
-    return combined.length >= IV_LENGTH + 1 + TAG_LENGTH;
+    // Check minimum length: IV + some encrypted data
+    return combined.length >= IV_LENGTH + 1;
   } catch {
     return false;
   }

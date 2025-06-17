@@ -70,7 +70,7 @@ const DEFAULT_MODELS: Record<ProviderType, ModelConfig[]> = {
   ],
   google: [
     {
-      id: 'gemini-2.5-flash-preview-05-20',
+      id: 'gemini-2.5-flash',
       displayName: 'Gemini 2.5 Flash',
       description: 'Cost-efficient Gemini model with multi-modal capabilities',
       maxTokens: 1048576,
@@ -84,7 +84,7 @@ const DEFAULT_MODELS: Record<ProviderType, ModelConfig[]> = {
       isCustom: false,
     },
     {
-      id: 'gemini-2.5-pro-preview',
+      id: 'gemini-2.5-pro',
       displayName: 'Gemini 2.5 Pro',
       description: 'Most capable Gemini model',
       maxTokens: 1048576,

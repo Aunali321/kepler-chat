@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 export default async function ChatPage() {
   const { user } = await requireAuth();
 
-  // Create chat in database (let DB generate the ID)
+  // Create chat in database directly in Server Component
   const chat = await createChat({
     userId: user.id,
     title: 'New Chat',

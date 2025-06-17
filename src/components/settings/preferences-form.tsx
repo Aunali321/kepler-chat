@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { useSettingsStore } from '@/lib/stores/settings-store';
+import { useProviderStore } from '@/lib/stores/provider-store';
 import { ProviderSettings } from './provider-settings';
 
 export function PreferencesForm() {
@@ -31,11 +32,41 @@ export function PreferencesForm() {
     updateNotificationSetting,
   } = useSettingsStore();
 
+  const {
+    providers,
+    getAvailableProviders,
+    getAvailableModels,
+    loadProviders,
+  } = useProviderStore();
+
   useEffect(() => {
-    // Load preferences on component mount
+    // Load preferences and providers on component mount
     loadPreferences();
+    loadProviders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Get all available models from enabled providers
+  const getAvailableModelsForDropdown = () => {
+    const availableProviders = getAvailableProviders();
+    const allModels: Array<{ value: string; label: string; provider: string }> = [];
+
+    availableProviders.forEach(providerId => {
+      const models = getAvailableModels(providerId);
+      models.forEach(model => {
+        allModels.push({
+          value: model.id,
+          label: `${model.displayName} (${providerId})`,
+          provider: providerId,
+        });
+      });
+    });
+
+    return allModels;
+  };
+
+  const availableModels = getAvailableModelsForDropdown();
+  const availableProviders = getAvailableProviders();
 
   if (isLoading) {
     return (
@@ -165,31 +196,52 @@ export function PreferencesForm() {
             <Label htmlFor="defaultModel">Default AI Model</Label>
             <select
               id="defaultModel"
-              value={defaultModel || 'gpt-4o-mini'}
+              value={defaultModel || (availableModels[0]?.value || '')}
               onChange={(e) => updatePreference('defaultModel', e.target.value)}
               className="w-full p-2 border rounded-md mt-1"
+              disabled={availableModels.length === 0}
             >
-              <option value="gpt-4o">GPT-4o</option>
-              <option value="gpt-4o-mini">GPT-4o Mini</option>
-              <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
-              <option value="claude-3-haiku">Claude 3 Haiku</option>
-              <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+              {availableModels.length === 0 ? (
+                <option value="">No models available - configure providers first</option>
+              ) : (
+                availableModels.map(model => (
+                  <option key={`${model.provider}-${model.value}`} value={model.value}>
+                    {model.label}
+                  </option>
+                ))
+              )}
             </select>
+            {availableModels.length === 0 && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Add and validate API keys in the AI Service Providers section below to see available models.
+              </p>
+            )}
           </div>
 
           <div>
             <Label htmlFor="defaultProvider">Default Provider</Label>
             <select
               id="defaultProvider"
-              value={defaultProvider || 'openai'}
+              value={defaultProvider || (availableProviders[0] || '')}
               onChange={(e) => updatePreference('defaultProvider', e.target.value)}
               className="w-full p-2 border rounded-md mt-1"
+              disabled={availableProviders.length === 0}
             >
-              <option value="openai">OpenAI</option>
-              <option value="anthropic">Anthropic</option>
-              <option value="google">Google</option>
-              <option value="openrouter">OpenRouter</option>
+              {availableProviders.length === 0 ? (
+                <option value="">No providers available - configure providers first</option>
+              ) : (
+                availableProviders.map(providerId => (
+                  <option key={providerId} value={providerId}>
+                    {providerId.charAt(0).toUpperCase() + providerId.slice(1)}
+                  </option>
+                ))
+              )}
             </select>
+            {availableProviders.length === 0 && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Add and validate API keys in the AI Service Providers section below to see available providers.
+              </p>
+            )}
           </div>
 
           <div className="space-y-3">

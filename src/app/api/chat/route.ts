@@ -11,11 +11,37 @@ import {
   createUsageMetric 
 } from '@/lib/db/queries';
 
-// Using nodejs runtime for database compatibility
-export const runtime = 'nodejs';
-
 // Maximum duration for the API route (30 seconds)
 export const maxDuration = 30;
+
+// GET handler for creating new chats
+export async function GET(req: Request) {
+  try {
+    // Authenticate user
+    const authResult = await requireAuthApi();
+    if ('error' in authResult) {
+      return new Response(authResult.error, { status: authResult.status });
+    }
+
+    const { user } = authResult;
+
+    // Create new chat
+    const chat = await createChat({
+      userId: user.id,
+      title: 'New Chat',
+      modelConfig: {
+        provider: 'google',
+        model: 'gemini-2.0-flash',
+      },
+    });
+
+    return Response.json({ chat });
+
+  } catch (error) {
+    console.error('Create chat error:', error);
+    return new Response('Internal server error', { status: 500 });
+  }
+}
 
 // Request validation schema
 const ChatRequestSchema = z.object({
