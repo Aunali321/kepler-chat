@@ -289,22 +289,34 @@ export class ProviderManager {
 
     // Create provider instance with user's API key
     switch (providerId) {
-      case 'openai':
-        return openai(modelId, {
+      case 'openai': {
+        const { createOpenAI } = await import('@ai-sdk/openai');
+        const openaiProvider = createOpenAI({
           apiKey,
         });
-      case 'anthropic':
-        return anthropic(modelId, {
+        return openaiProvider(modelId);
+      }
+      case 'anthropic': {
+        const { createAnthropic } = await import('@ai-sdk/anthropic');
+        const anthropicProvider = createAnthropic({
           apiKey,
         });
-      case 'google':
-        return google(modelId, {
+        return anthropicProvider(modelId);
+      }
+      case 'google': {
+        const { createGoogleGenerativeAI } = await import('@ai-sdk/google');
+        const googleProvider = createGoogleGenerativeAI({
           apiKey,
         });
-      case 'openrouter':
-        return openrouter(modelId, {
+        return googleProvider(modelId);
+      }
+      case 'openrouter': {
+        const { createOpenRouter } = await import('@openrouter/ai-sdk-provider');
+        const openRouterProvider = createOpenRouter({
           apiKey,
         });
+        return openRouterProvider(modelId);
+      }
       default:
         throw new Error(`Provider ${providerId} not implemented`);
     }

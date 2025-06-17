@@ -39,13 +39,11 @@ if __name__ == "__main__":
             user_input = line.strip()
 
             # Check for exit conditions
-            # MODIFIED: Empty string no longer exits
             if user_input.upper() in ['TASK_COMPLETE', 'DONE', 'QUIT', 'Q']:
                 print(
                     f"--- REVIEW GATE: USER SIGNALED COMPLETION WITH '{user_input.upper()}' ---", flush=True)
                 active_session = False
                 break
-            # If there's any other non-empty input (and not a completion command)
             elif user_input:
                 # This is the critical line the AI will "listen" for.
                 print(f"USER_REVIEW_SUB_PROMPT: {user_input}", flush=True)

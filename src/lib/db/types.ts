@@ -89,7 +89,7 @@ export type ProviderConfig = {
   apiKeyValid: boolean;
   defaultModel?: string;
   availableModels: ModelConfig[];
-  customModels: UserCustomModel[];
+  customModels: ModelConfig[];
 };
 
 // Model configuration
