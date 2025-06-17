@@ -2,10 +2,12 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Search, Plus, Folder, Archive, Pin, MoreHorizontal, FolderPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useChatDataStore, initializeChatData } from '@/lib/stores/chat-data-store';
+import { createNewChat } from '@/app/actions';
 
 interface ChatSidebarProps {
   selectedChatId?: string;
@@ -53,38 +55,35 @@ export function ChatSidebar({ selectedChatId }: ChatSidebarProps) {
     }
   };
 
-  const handleChatSelect = (chatId: string) => {
-    router.push(`/chat/${chatId}`);
-  };
-
-  const handleNewChat = () => {
-    router.push('/chat');
+  const handleNewChat = async () => {
+    const newChat = await createNewChat();
+    router.push(`/chat/${newChat.id}`);
   };
 
   const renderChatItem = (chat: any) => (
-    <div
-      key={chat.id}
-      className={`p-3 rounded-lg cursor-pointer transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 ${
-        selectedChatId === chat.id ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' : ''
-      }`}
-      onClick={() => handleChatSelect(chat.id)}
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-medium truncate">{chat.title}</h3>
-          <p className="text-xs text-gray-500 mt-1">
-            {chat.lastMessageAt ? new Date(chat.lastMessageAt).toLocaleDateString() : 'No messages'}
-          </p>
-        </div>
-        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {chat.isPinned && <Pin className="w-4 h-4 text-blue-500" />}
-          {chat.isArchived && <Archive className="w-4 h-4 text-gray-500" />}
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-            <MoreHorizontal className="w-3 h-3" />
-          </Button>
+    <Link href={`/chat/${chat.id}`} key={chat.id} passHref>
+      <div
+        className={`p-3 rounded-lg cursor-pointer transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 ${
+          selectedChatId === chat.id ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' : ''
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-medium truncate">{chat.title}</h3>
+            <p className="text-xs text-gray-500 mt-1">
+              {chat.lastMessageAt ? new Date(chat.lastMessageAt).toLocaleDateString() : 'No messages'}
+            </p>
+          </div>
+          <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {chat.isPinned && <Pin className="w-4 h-4 text-blue-500" />}
+            {chat.isArchived && <Archive className="w-4 h-4 text-gray-500" />}
+            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+              <MoreHorizontal className="w-3 h-3" />
+            </Button>
+          </div>
         </div>
       </div>
-    </div>
+    </Link>
   );
 
   if (isLoading) {

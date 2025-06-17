@@ -1,12 +1,13 @@
+'use server';
+
 import { requireAuth } from '@/lib/auth-server';
 import { createChat } from '@/lib/db/queries';
-import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 
-export default async function ChatPage() {
+export async function createNewChat() {
   const { user } = await requireAuth();
 
-  // Create chat in database directly in Server Component
-  const chat = await createChat({
+  const newChat = await createChat({
     userId: user.id,
     title: 'New Chat',
     modelConfig: {
@@ -15,6 +16,6 @@ export default async function ChatPage() {
     },
   });
 
-  // Redirect to the new chat with its ID in the URL
-  redirect(`/chat/${chat.id}`);
-}
+  revalidatePath('/chat');
+  return newChat;
+} 
