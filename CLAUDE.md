@@ -178,15 +178,91 @@ This project is in active development. **Epic 1 (Foundation & Infrastructure) is
 
 The platform now has a solid foundation ready for AI SDK integration and chat functionality.
 
+### ✅ **Recent Critical Fixes (Epic 2 - Chat Implementation)**
+
+**Major Refactor Completed**: Comprehensive state management migration and settings integration.
+
+#### **State Management Architecture**
+- **Zustand Migration**: Migrated from local React state to centralized Zustand stores
+- **8 Specialized Stores**: chat-store, ui-store, settings-store, notification-store, form-store, file-upload-store, chat-data-store, password-store
+- **Persistent State**: All stores use localStorage persistence with selective partitioning
+- **Immer Integration**: All stores use Immer middleware for immutable updates
+
+#### **Settings System Implementation**
+- **Comprehensive Settings Store**: Full user preferences with server synchronization
+- **App-Level Loading**: Settings load at app initialization in StoreProvider 
+- **Dynamic UI Application**: CSS custom properties for fontSize and sidebarWidth
+- **Settings Synchronization**: All stores respect user preferences (provider, model, theme, UI settings)
+- **Notification Filtering**: Notifications respect user notification preferences
+
+#### **Media Attachment System**
+- **Fixed Critical Bug**: Resolved race condition preventing media attachments from being sent
+- **File Upload Pipeline**: Complete R2 integration with progress tracking and validation
+- **Multi-Format Support**: Images, audio, video, PDFs, and documents
+- **Error Handling**: Comprehensive upload error handling and user feedback
+
+#### **UI/UX Enhancements**
+- **Dynamic Typography**: User-configurable font sizes (small/medium/large) applied globally
+- **Responsive Sidebar**: User-configurable sidebar width (narrow/normal/wide)
+- **Theme System**: Complete dark/light/system theme support with instant switching
+- **Enhanced Forms**: Form validation, loading states, error handling across all auth forms
+- **Notification System**: Toast notifications with filtering and dismissal
+
+#### **Code Quality & Architecture**
+- **TypeScript Strict**: Enhanced type safety across all stores and components
+- **ESLint Integration**: Added comprehensive linting rules
+- **Component Architecture**: Provider pattern for global state management
+- **Error Boundaries**: Graceful error handling throughout the application
+- **Performance**: Optimized re-renders and state updates
+
 The comprehensive product design document (PRODUCT_DESIGN.md) outlines the full vision for this multi-user chat platform.
+
+## Current Architecture Status
+
+### **Store Structure**
+```
+src/lib/stores/
+├── settings-store.ts        # User preferences (theme, language, defaults)
+├── ui-store.ts             # UI state (sidebar, dialogs, responsive)
+├── chat-store.ts           # Chat settings (provider, model, tools, params)
+├── chat-data-store.ts      # Chat data (messages, folders, search)
+├── notification-store.ts   # Toast notifications with filtering
+├── form-store.ts           # Form state management with validation
+├── file-upload-store.ts    # File upload state and progress
+└── password-store.ts       # Password validation and strength
+```
+
+### **Provider Architecture**
+```
+src/components/providers/
+├── store-provider.tsx      # App-level store initialization
+├── theme-provider.tsx      # Theme switching and persistence
+└── (app-level providers wrap entire application)
+```
+
+### **Settings Integration**
+- All stores load from user preferences on app initialization
+- Settings changes immediately propagate to all components
+- CSS custom properties enable dynamic styling
+- Persistent localStorage with server synchronization
+
+### **Media Attachment Flow**
+1. File selection triggers upload to R2 with presigned URLs
+2. Upload progress tracked in file-upload-store
+3. Completed uploads added to message as experimental_attachments
+4. API route validates and processes attachments for AI models
 
 ## Future Implementation Notes
 
-When implementing the full chat platform:
-- Use Vercel AI SDK's `useChat` hook for chat interface
-- Implement BetterAuth for user authentication
-- Set up PostgreSQL schema for users, chats, messages, and files
-- Configure Cloudflare R2 for file storage
-- Create API routes in `app/api/` following the design document
-- Use `experimental_attachments` for file handling
-- Implement tool calling with custom tool registry
+When implementing additional chat features:
+- Use existing Zustand stores for state management
+- Settings integration is automatic via app-level loading
+- File attachments work end-to-end with R2 storage
+- Notification system ready for chat events
+- Form validation patterns established in form-store
+- Responsive design respects user UI preferences
+
+
+# Important Note
+- DO NOT USE WORKAROUNDS, FALLBACKS, OR HACKS.
+- DO NOT FOOL THE REVIEWER.

@@ -5,6 +5,8 @@ import { Search, MessageCircle, Calendar, User } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { useForm } from '@/lib/stores/form-store';
+import { useNotify } from '@/lib/stores/notification-store';
 import type { SearchResults } from '@/lib/db/types';
 
 interface SearchDialogProps {
@@ -16,8 +18,10 @@ interface SearchDialogProps {
 export function SearchDialog({ isOpen, onClose, onChatSelect }: SearchDialogProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResults | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  
+  // Use form store for loading/error states
+  const { form: formState, handleSubmit } = useForm('search-dialog');
+  const notify = useNotify();
 
   const performSearch = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) {
@@ -25,10 +29,7 @@ export function SearchDialog({ isOpen, onClose, onChatSelect }: SearchDialogProp
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
-
-    try {
+    const result = await handleSubmit(async () => {
       const response = await fetch(`/api/chat/search?query=${encodeURIComponent(searchQuery)}&limit=20`);
       
       if (!response.ok) {
@@ -36,14 +37,15 @@ export function SearchDialog({ isOpen, onClose, onChatSelect }: SearchDialogProp
       }
 
       const data = await response.json();
-      setResults(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Search failed');
+      return data;
+    });
+
+    if (result) {
+      setResults(result);
+    } else {
       setResults(null);
-    } finally {
-      setIsLoading(false);
     }
-  }, []);
+  }, [handleSubmit]);
 
   // Debounce search
   useEffect(() => {
@@ -97,26 +99,26 @@ export function SearchDialog({ isOpen, onClose, onChatSelect }: SearchDialogProp
 
         {/* Results */}
         <div className="flex-1 overflow-y-auto p-6">
-          {isLoading && (
+          {formState.isLoading && (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
             </div>
           )}
 
-          {error && (
+          {formState.error && (
             <div className="text-center py-8">
-              <p className="text-red-500">{error}</p>
+              <p className="text-red-500">{formState.error}</p>
             </div>
           )}
 
-          {!isLoading && !error && !results && query && (
+          {!formState.isLoading && !formState.error && !results && query && (
             <div className="text-center py-8">
               <Search className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500">Start typing to search chats and messages...</p>
             </div>
           )}
 
-          {!isLoading && !error && query && results && (
+          {!formState.isLoading && !formState.error && query && results && (
             <div className="space-y-6">
               {/* Chat Results */}
               {results.chats && results.chats.length > 0 && (

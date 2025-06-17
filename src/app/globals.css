@@ -45,6 +45,10 @@
 
 :root {
   --radius: 0.625rem;
+  
+  /* Dynamic UI settings */
+  --font-size-scale: 1;
+  --sidebar-width: 20rem; /* 320px for normal */
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -112,11 +116,53 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Dynamic sizing classes based on settings */
+.font-size-small {
+  --font-size-scale: 0.875;
+}
+
+.font-size-medium {
+  --font-size-scale: 1;
+}
+
+.font-size-large {
+  --font-size-scale: 1.125;
+}
+
+.sidebar-narrow {
+  --sidebar-width: 16rem; /* 256px */
+}
+
+.sidebar-normal {
+  --sidebar-width: 20rem; /* 320px */
+}
+
+.sidebar-wide {
+  --sidebar-width: 24rem; /* 384px */
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
+  }
+  
+  /* Apply dynamic font scaling */
+  .dynamic-text {
+    font-size: calc(1rem * var(--font-size-scale));
+  }
+  
+  .dynamic-text-sm {
+    font-size: calc(0.875rem * var(--font-size-scale));
+  }
+  
+  .dynamic-text-lg {
+    font-size: calc(1.125rem * var(--font-size-scale));
+  }
+  
+  .dynamic-text-xl {
+    font-size: calc(1.25rem * var(--font-size-scale));
   }
 }

@@ -15,7 +15,7 @@ interface Attachment {
 interface ChatInputProps {
   input: string;
   handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-  handleSubmit: (e: React.FormEvent<HTMLFormElement>, options?: { experimental_attachments?: FileList | Attachment[] }) => void;
+  handleSubmit: (e: React.FormEvent<HTMLFormElement>, options?: { experimental_attachments?: Attachment[] }) => void;
   isLoading: boolean;
   onStop: () => void;
   chatId?: string;
@@ -56,11 +56,34 @@ export function ChatInput({
     console.log('📁 files changed:', files ? Array.from(files).map(f => f.name) : null);
   }, [files]);
 
+  // Add effect to track isUploading state
+  useEffect(() => {
+    console.log('⏳ isUploading changed:', isUploading);
+    const buttonDisabled = isUploading || (!isLoading && !input.trim() && uploadedAttachments.length === 0);
+    console.log('🔒 Button disabled:', buttonDisabled, {
+      isUploading,
+      isLoading,
+      hasInput: !!input.trim(),
+      hasAttachments: uploadedAttachments.length > 0
+    });
+  }, [isUploading, isLoading, input, uploadedAttachments]);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (input.trim() && !isLoading) {
+      console.log('🔑 Enter key pressed, checking conditions:', {
+        hasInput: !!input.trim(),
+        isLoading,
+        isUploading,
+        hasAttachments: uploadedAttachments.length > 0
+      });
+      
+      // Check same conditions as button disabled state
+      if ((input.trim() || uploadedAttachments.length > 0) && !isLoading && !isUploading) {
+        console.log('✅ Enter key submit allowed');
         handleSubmit(e as any);
+      } else {
+        console.log('❌ Enter key submit blocked');
       }
     }
   };
@@ -118,13 +141,16 @@ export function ChatInput({
 
       console.log('Final attachments array:', attachments);
       setUploadedAttachments(attachments);
+      console.log('✅ Upload completed, setting isUploading to false');
     } catch (error) {
       console.error('File upload error:', error);
       setUploadError(error instanceof Error ? error.message : 'Failed to upload files');
       setFiles(undefined);
       setUploadedAttachments([]);
+      console.log('❌ Upload failed, setting isUploading to false');
     } finally {
       setIsUploading(false);
+      console.log('🔄 isUploading finally set to false');
     }
   };
 
@@ -142,11 +168,12 @@ export function ChatInput({
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    console.log('=== CHAT INPUT DEBUG ===');
+    console.log('=== CHAT INPUT onSubmit DEBUG ===');
     console.log('isUploading:', isUploading);
     console.log('input.trim():', input.trim());
     console.log('uploadedAttachments:', uploadedAttachments);
     console.log('uploadedAttachments.length:', uploadedAttachments.length);
+    console.log('Current form event:', e.type);
 
     // Don't submit if still uploading
     if (isUploading) {
@@ -155,21 +182,18 @@ export function ChatInput({
     }
 
     if (input.trim() || uploadedAttachments.length > 0) {
-      // Since we're using R2 uploads, we need to pass the uploaded attachment URLs
-      // Convert our R2 attachments to the format expected by AI SDK
-      const attachmentUrls = uploadedAttachments.map(att => ({
-        name: att.name,
-        contentType: att.contentType, 
-        url: att.url,
-      }));
+      console.log('✅ Submitting with uploadedAttachments:', uploadedAttachments);
 
-      console.log('✅ Submitting with attachmentUrls:', attachmentUrls);
-
-      handleSubmit(e, {
-        experimental_attachments: attachmentUrls.length > 0 ? attachmentUrls : undefined,
-      });
+      // Call handleSubmit with proper options object
+      const submitOptions = uploadedAttachments.length > 0 ? {
+        experimental_attachments: uploadedAttachments,
+      } : undefined;
+      
+      console.log('📤 Final submit options:', submitOptions);
+      handleSubmit(e, submitOptions);
 
       // Clear files after sending
+      console.log('🧹 Clearing files after submit');
       setFiles(undefined);
       setUploadedAttachments([]);
       if (fileInputRef.current) {

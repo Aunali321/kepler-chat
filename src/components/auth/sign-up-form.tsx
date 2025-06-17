@@ -1,17 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm as useReactHookForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { signUp, signIn } from "@/lib/auth-client";
+import { PasswordInput } from "@/components/ui/password-input";
+import { Input } from "@/components/ui/input";
+import { signUp } from "@/lib/auth-client";
+import { useForm } from "@/lib/stores/form-store";
+// import { useNotify } from "@/lib/stores/notification-store";
 
 const signUpSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(50, "Name must be less than 50 characters"),
@@ -29,35 +31,16 @@ const signUpSchema = z.object({
 
 type SignUpFormData = z.infer<typeof signUpSchema>;
 
-interface PasswordStrength {
-  score: number;
-  label: string;
-  color: string;
-}
-
-function getPasswordStrength(password: string): PasswordStrength {
-  let score = 0;
-  
-  if (password.length >= 8) score++;
-  if (password.length >= 12) score++;
-  if (/[A-Z]/.test(password)) score++;
-  if (/[a-z]/.test(password)) score++;
-  if (/[0-9]/.test(password)) score++;
-  if (/[^A-Za-z0-9]/.test(password)) score++;
-  
-  if (score <= 2) return { score, label: "Weak", color: "bg-red-500" };
-  if (score <= 4) return { score, label: "Medium", color: "bg-yellow-500" };
-  return { score, label: "Strong", color: "bg-green-500" };
-}
-
 export function SignUpForm() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  // Notification store available for future use
+  // const notify = useNotify();
+  
+  // Use our new form store
+  const formStore = useForm('sign-up-form');
+  const { form: formState, handleSubmit, setDirty } = formStore;
 
-  const form = useForm<SignUpFormData>({
+  const reactHookForm = useReactHookForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
     defaultValues: {
       name: "",
@@ -67,46 +50,59 @@ export function SignUpForm() {
     },
   });
 
-  const password = form.watch("password");
-  const passwordStrength = password ? getPasswordStrength(password) : null;
+  // Mark form as dirty when values change
+  reactHookForm.watch(() => {
+    if (!formState.isDirty) {
+      setDirty(true);
+    }
+  });
 
   const onSubmit = async (values: SignUpFormData) => {
-    setIsLoading(true);
-    setError(null);
+    const result = await handleSubmit(
+      async () => {
+        const signUpResult = await signUp.email({
+          email: values.email,
+          password: values.password,
+          name: values.name,
+        });
 
-    try {
-      const result = await signUp.email({
-        email: values.email,
-        password: values.password,
-        name: values.name,
-      });
+        if (signUpResult.error) {
+          throw new Error(signUpResult.error.message || "Failed to create account");
+        }
 
-      if (result.error) {
-        setError(result.error.message || "Failed to create account");
-        return;
+        return signUpResult;
+      },
+      {
+        successMessage: "Account created successfully! Redirecting...",
+        showNotifications: true,
       }
+    );
 
+    if (result) {
       // Redirect to dashboard on successful registration
       router.push("/dashboard");
-    } catch (err) {
-      setError("An unexpected error occurred. Please try again.");
-      console.error("Sign up error:", err);
-    } finally {
-      setIsLoading(false);
     }
   };
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        {error && (
-          <div className="rounded-md bg-red-50 p-3">
-            <div className="text-sm text-red-700">{error}</div>
+    <Form {...reactHookForm}>
+      <form onSubmit={reactHookForm.handleSubmit(onSubmit)} className="space-y-4">
+        {/* Enhanced error display using form store */}
+        {formState.error && (
+          <div className="rounded-md bg-red-50 border border-red-200 p-3">
+            <div className="text-sm text-red-700">{formState.error}</div>
+          </div>
+        )}
+
+        {/* Enhanced success display using form store */}
+        {formState.success && (
+          <div className="rounded-md bg-green-50 border border-green-200 p-3">
+            <div className="text-sm text-green-700">{formState.success}</div>
           </div>
         )}
 
         <FormField
-          control={form.control}
+          control={reactHookForm.control}
           name="name"
           render={({ field }) => (
             <FormItem>
@@ -115,7 +111,7 @@ export function SignUpForm() {
                 <Input
                   placeholder="Enter your full name"
                   autoComplete="name"
-                  disabled={isLoading}
+                  disabled={formState.isLoading}
                   {...field}
                 />
               </FormControl>
@@ -125,7 +121,7 @@ export function SignUpForm() {
         />
 
         <FormField
-          control={form.control}
+          control={reactHookForm.control}
           name="email"
           render={({ field }) => (
             <FormItem>
@@ -135,7 +131,7 @@ export function SignUpForm() {
                   type="email"
                   placeholder="Enter your email"
                   autoComplete="email"
-                  disabled={isLoading}
+                  disabled={formState.isLoading}
                   {...field}
                 />
               </FormControl>
@@ -145,95 +141,48 @@ export function SignUpForm() {
         />
 
         <FormField
-          control={form.control}
+          control={reactHookForm.control}
           name="password"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Password</FormLabel>
               <FormControl>
-                <div className="relative">
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Create a password"
-                    autoComplete="new-password"
-                    disabled={isLoading}
-                    {...field}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
-                    disabled={isLoading}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
+                <PasswordInput
+                  {...field}
+                  fieldId="signup-password"
+                  placeholder="Create a password"
+                  autoComplete="new-password"
+                  disabled={formState.isLoading}
+                  strengthIndicator
+                />
               </FormControl>
-              
-              {/* Password Strength Indicator */}
-              {password && passwordStrength && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-gray-200 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full transition-all duration-300 ${passwordStrength.color}`}
-                        style={{ width: `${(passwordStrength.score / 6) * 100}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-gray-600">{passwordStrength.label}</span>
-                  </div>
-                </div>
-              )}
-              
               <FormMessage />
             </FormItem>
           )}
         />
 
         <FormField
-          control={form.control}
+          control={reactHookForm.control}
           name="confirmPassword"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Confirm Password</FormLabel>
               <FormControl>
-                <div className="relative">
-                  <Input
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Confirm your password"
-                    autoComplete="new-password"
-                    disabled={isLoading}
-                    {...field}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    disabled={isLoading}
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
+                <PasswordInput
+                  {...field}
+                  fieldId="signup-confirm-password"
+                  placeholder="Confirm your password"
+                  autoComplete="new-password"
+                  disabled={formState.isLoading}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? (
+        <Button type="submit" className="w-full" disabled={formState.isLoading}>
+          {formState.isLoading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Creating account...

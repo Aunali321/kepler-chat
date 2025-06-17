@@ -1,7 +1,7 @@
 'use client';
 
 import { useChat } from 'ai/react';
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, Download, Share2, Settings } from 'lucide-react';
 import { MessageList } from './message-list';
@@ -15,6 +15,8 @@ import { ShareDialog } from './share-dialog';
 import { Button } from '@/components/ui/button';
 import { providers, type ProviderKey } from '@/lib/providers';
 import { defaultTools, type ToolName } from '@/lib/tools';
+import { useChatStore } from '@/lib/stores/chat-store';
+import { useUIStore } from '@/lib/stores/ui-store';
 
 interface ChatInterfaceProps {
   chatId?: string;
@@ -24,15 +26,34 @@ interface ChatInterfaceProps {
 
 export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatInterfaceProps) {
   const router = useRouter();
-  const [selectedProvider, setSelectedProvider] = useState<ProviderKey>('google');
-  const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash');
-  const [systemPrompt, setSystemPrompt] = useState('');
-  const [enabledTools, setEnabledTools] = useState<ToolName[]>(defaultTools);
   
-  // Dialog states
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
+  // Chat store
+  const {
+    selectedProvider,
+    selectedModel,
+    systemPrompt,
+    enabledTools,
+    setProvider,
+    setModel,
+    setSystemPrompt,
+    setEnabledTools,
+    setCurrentChatId,
+    setIsGenerating,
+    loadFromPreferences,
+  } = useChatStore();
+
+  // UI store for dialog states
+  const {
+    searchDialogOpen,
+    exportDialogOpen,
+    shareDialogOpen,
+    openSearchDialog,
+    closeSearchDialog,
+    openExportDialog,
+    closeExportDialog,
+    openShareDialog,
+    closeShareDialog,
+  } = useUIStore();
 
   const {
     messages,
@@ -56,20 +77,49 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
     initialMessages,
     onError: (error) => {
       console.error('Chat error:', error);
+      setIsGenerating(false);
     },
     onFinish: (message, { usage, finishReason }) => {
       console.log('Message finished:', { usage, finishReason });
+      setIsGenerating(false);
     },
   });
 
-  // Update system prompt when provider/model changes
+  // Load chat preferences on component mount  
   useEffect(() => {
-    // You could implement different default system prompts per provider here
+    const initializeChatPreferences = async () => {
+      console.log('🔧 Loading chat preferences...');
+      try {
+        // Load chat preferences (settings should already be loaded by StoreProvider)
+        await loadFromPreferences();
+        console.log('✅ Chat preferences loaded');
+      } catch (error) {
+        console.error('❌ Error loading chat preferences:', error);
+      }
+    };
+    
+    initializeChatPreferences();
+  }, [loadFromPreferences]);
+
+  // Set current chat ID and update generation state
+  useEffect(() => {
+    setCurrentChatId(chatId || null);
+    setIsGenerating(isLoading);
+  }, [chatId, isLoading, setCurrentChatId, setIsGenerating]);
+
+  // Debug current provider/model
+  useEffect(() => {
+    console.log('🎛️ Current chat settings:', { selectedProvider, selectedModel });
   }, [selectedProvider, selectedModel]);
 
   const handleProviderChange = (provider: ProviderKey, model: string) => {
-    setSelectedProvider(provider);
-    setSelectedModel(model);
+    setProvider(provider);
+    setModel(model);
+  };
+
+  const handleToolsChange = (tools: ToolName[]) => {
+    // Update enabled tools in store
+    setEnabledTools(tools);
   };
 
   const handleChatSelect = (selectedChatId: string) => {
@@ -90,7 +140,7 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setSearchOpen(true)}
+              onClick={openSearchDialog}
               className="flex items-center gap-2"
             >
               <Search className="w-4 h-4" />
@@ -102,7 +152,7 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setExportOpen(true)}
+                  onClick={openExportDialog}
                   className="flex items-center gap-2"
                 >
                   <Download className="w-4 h-4" />
@@ -112,7 +162,7 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setShareOpen(true)}
+                  onClick={openShareDialog}
                   className="flex items-center gap-2"
                 >
                   <Share2 className="w-4 h-4" />
@@ -123,7 +173,7 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
             
             <ToolSelector
               enabledTools={enabledTools}
-              onToolsChange={setEnabledTools}
+              onToolsChange={handleToolsChange}
             />
             <ProviderSelector
               selectedProvider={selectedProvider}
@@ -189,23 +239,23 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
 
       {/* Dialogs */}
       <SearchDialog
-        isOpen={searchOpen}
-        onClose={() => setSearchOpen(false)}
+        isOpen={searchDialogOpen}
+        onClose={closeSearchDialog}
         onChatSelect={handleChatSelect}
       />
       
       {chatId && (
         <>
           <ExportDialog
-            isOpen={exportOpen}
-            onClose={() => setExportOpen(false)}
+            isOpen={exportDialogOpen}
+            onClose={closeExportDialog}
             chatId={chatId}
             chatTitle={chatTitle || 'Chat'}
           />
           
           <ShareDialog
-            isOpen={shareOpen}
-            onClose={() => setShareOpen(false)}
+            isOpen={shareDialogOpen}
+            onClose={closeShareDialog}
             chatId={chatId}
             chatTitle={chatTitle || 'Chat'}
           />

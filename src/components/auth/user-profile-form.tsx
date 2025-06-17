@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm as useReactHookForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, User, Save } from "lucide-react";
@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/components/auth-provider";
+import { useForm } from "@/lib/stores/form-store";
+import { PasswordInput } from "../ui/password-input";
 
 const profileSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(50, "Name must be less than 50 characters"),
@@ -37,12 +39,15 @@ const profileSchema = z.object({
 type ProfileFormData = z.infer<typeof profileSchema>;
 
 export function UserProfileForm() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const { user } = useAuth();
+  // Notification store available for future use
+  // const notify = useNotify();
 
-  const form = useForm<ProfileFormData>({
+  // Use our new form store
+  const formStore = useForm('user-profile-form');
+  const { form: formState, handleSubmit, setDirty } = formStore;
+
+  const reactHookForm = useReactHookForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
       name: "",
@@ -56,7 +61,7 @@ export function UserProfileForm() {
   // Populate form with user data when available
   useEffect(() => {
     if (user) {
-      form.reset({
+      reactHookForm.reset({
         name: user.name || "",
         email: user.email || "",
         currentPassword: "",
@@ -64,33 +69,38 @@ export function UserProfileForm() {
         confirmNewPassword: "",
       });
     }
-  }, [user, form]);
+  }, [user, reactHookForm]);
 
-  const onSubmit = async (values: ProfileFormData) => {
-    setIsLoading(true);
-    setError(null);
-    setSuccess(null);
+  // Mark form as dirty when values change
+  reactHookForm.watch(() => {
+    if (!formState.isDirty) {
+      setDirty(true);
+    }
+  });
 
-    try {
-      // TODO: Implement profile update with BetterAuth
-      // For now, simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Mock success for now - in real implementation:
-      // const result = await updateProfile(values);
-      
-      setSuccess("Profile updated successfully!");
-      
+  const onSubmit = async (_values: ProfileFormData) => {
+    const result = await handleSubmit(
+      async () => {
+        // TODO: Implement profile update with BetterAuth
+        // For now, simulate API call
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        // Mock success for now - in real implementation:
+        // const result = await updateProfile(values);
+
+        return { success: true };
+      },
+      {
+        successMessage: "Profile updated successfully!",
+        showNotifications: true,
+      }
+    );
+
+    if (result) {
       // Clear password fields after successful update
-      form.setValue("currentPassword", "");
-      form.setValue("newPassword", "");
-      form.setValue("confirmNewPassword", "");
-      
-    } catch (err) {
-      setError("Failed to update profile. Please try again.");
-      console.error("Profile update error:", err);
-    } finally {
-      setIsLoading(false);
+      reactHookForm.setValue("currentPassword", "");
+      reactHookForm.setValue("newPassword", "");
+      reactHookForm.setValue("confirmNewPassword", "");
     }
   };
 
@@ -116,26 +126,28 @@ export function UserProfileForm() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {error && (
+        <Form {...reactHookForm}>
+          <form onSubmit={reactHookForm.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Enhanced error display using form store */}
+            {formState.error && (
               <div className="rounded-md bg-red-50 p-3">
-                <div className="text-sm text-red-700">{error}</div>
+                <div className="text-sm text-red-700">{formState.error}</div>
               </div>
             )}
 
-            {success && (
+            {/* Enhanced success display using form store */}
+            {formState.success && (
               <div className="rounded-md bg-green-50 p-3">
-                <div className="text-sm text-green-700">{success}</div>
+                <div className="text-sm text-green-700">{formState.success}</div>
               </div>
             )}
 
             {/* Basic Information */}
             <div className="space-y-4">
               <h4 className="text-sm font-medium text-gray-900">Basic Information</h4>
-              
+
               <FormField
-                control={form.control}
+                control={reactHookForm.control}
                 name="name"
                 render={({ field }) => (
                   <FormItem>
@@ -143,7 +155,7 @@ export function UserProfileForm() {
                     <FormControl>
                       <Input
                         placeholder="Enter your full name"
-                        disabled={isLoading}
+                        disabled={formState.isLoading}
                         {...field}
                       />
                     </FormControl>
@@ -153,7 +165,7 @@ export function UserProfileForm() {
               />
 
               <FormField
-                control={form.control}
+                control={reactHookForm.control}
                 name="email"
                 render={({ field }) => (
                   <FormItem>
@@ -162,7 +174,7 @@ export function UserProfileForm() {
                       <Input
                         type="email"
                         placeholder="Enter your email"
-                        disabled={isLoading}
+                        disabled={formState.isLoading}
                         {...field}
                       />
                     </FormControl>
@@ -178,20 +190,20 @@ export function UserProfileForm() {
               <p className="text-xs text-gray-500">
                 Leave password fields empty if you don't want to change your password.
               </p>
-              
+
               <FormField
-                control={form.control}
+                control={reactHookForm.control}
                 name="currentPassword"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Current Password</FormLabel>
                     <FormControl>
-                      <Input
-                        type="password"
+                      <PasswordInput
+                        {...field}
+                        fieldId="profile-current-password"
                         placeholder="Enter your current password"
                         autoComplete="current-password"
-                        disabled={isLoading}
-                        {...field}
+                        disabled={formState.isLoading}
                       />
                     </FormControl>
                     <FormMessage />
@@ -200,18 +212,19 @@ export function UserProfileForm() {
               />
 
               <FormField
-                control={form.control}
+                control={reactHookForm.control}
                 name="newPassword"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>New Password</FormLabel>
                     <FormControl>
-                      <Input
-                        type="password"
+                      <PasswordInput
+                        {...field}
+                        fieldId="profile-new-password"
                         placeholder="Enter your new password"
                         autoComplete="new-password"
-                        disabled={isLoading}
-                        {...field}
+                        disabled={formState.isLoading}
+                        strengthIndicator
                       />
                     </FormControl>
                     <FormMessage />
@@ -220,18 +233,18 @@ export function UserProfileForm() {
               />
 
               <FormField
-                control={form.control}
+                control={reactHookForm.control}
                 name="confirmNewPassword"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Confirm New Password</FormLabel>
                     <FormControl>
-                      <Input
-                        type="password"
+                      <PasswordInput
+                        {...field}
+                        fieldId="profile-confirm-new-password"
                         placeholder="Confirm your new password"
                         autoComplete="new-password"
-                        disabled={isLoading}
-                        {...field}
+                        disabled={formState.isLoading}
                       />
                     </FormControl>
                     <FormMessage />
@@ -240,8 +253,8 @@ export function UserProfileForm() {
               />
             </div>
 
-            <Button type="submit" disabled={isLoading} className="w-full">
-              {isLoading ? (
+            <Button type="submit" disabled={formState.isLoading} className="w-full">
+              {formState.isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Updating profile...

@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { useForm } from '@/lib/stores/form-store';
+import { useNotify } from '@/lib/stores/notification-store';
 import type { ChatShare } from '@/lib/db/types';
 
 interface ShareDialogProps {
@@ -17,12 +19,15 @@ interface ShareDialogProps {
 
 export function ShareDialog({ isOpen, onClose, chatId, chatTitle }: ShareDialogProps) {
   const [shares, setShares] = useState<ChatShare[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [permission, setPermission] = useState<'read' | 'comment' | 'edit'>('read');
   const [expiresAt, setExpiresAt] = useState('');
   const [isPublic, setIsPublic] = useState(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+
+  // Use form store for loading/error states
+  const { form: formState, handleSubmit } = useForm('share-dialog');
+  const notify = useNotify();
 
   useEffect(() => {
     if (isOpen) {
@@ -31,23 +36,19 @@ export function ShareDialog({ isOpen, onClose, chatId, chatTitle }: ShareDialogP
   }, [isOpen, chatId]);
 
   const loadShares = async () => {
-    try {
-      setIsLoading(true);
+    await handleSubmit(async () => {
       const response = await fetch(`/api/chat/share?chatId=${chatId}`);
       if (response.ok) {
         const data = await response.json();
         setShares(data.shares);
+        return data;
       }
-    } catch (error) {
-      console.error('Error loading shares:', error);
-    } finally {
-      setIsLoading(false);
-    }
+      throw new Error('Failed to load shares');
+    });
   };
 
   const createShare = async () => {
-    try {
-      setIsLoading(true);
+    const result = await handleSubmit(async () => {
       const response = await fetch('/api/chat/share', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -59,18 +60,24 @@ export function ShareDialog({ isOpen, onClose, chatId, chatTitle }: ShareDialogP
         }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setShares([...shares, data.share]);
-        setUserEmail('');
-        setPermission('read');
-        setExpiresAt('');
-        setIsPublic(false);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create share');
       }
-    } catch (error) {
-      console.error('Error creating share:', error);
-    } finally {
-      setIsLoading(false);
+
+      const data = await response.json();
+      return data;
+    }, {
+      successMessage: 'Share created successfully!',
+      showNotifications: true,
+    });
+
+    if (result) {
+      setShares([...shares, result.share]);
+      setUserEmail('');
+      setPermission('read');
+      setExpiresAt('');
+      setIsPublic(false);
     }
   };
 
@@ -94,8 +101,10 @@ export function ShareDialog({ isOpen, onClose, chatId, chatTitle }: ShareDialogP
       await navigator.clipboard.writeText(shareUrl);
       setCopiedToken(token);
       setTimeout(() => setCopiedToken(null), 2000);
+      notify.success('Share link copied to clipboard!');
     } catch (error) {
       console.error('Error copying to clipboard:', error);
+      notify.error('Failed to copy link to clipboard');
     }
   };
 
@@ -134,7 +143,7 @@ export function ShareDialog({ isOpen, onClose, chatId, chatTitle }: ShareDialogP
           {/* Create New Share */}
           <Card className="p-4">
             <h3 className="text-lg font-medium mb-4">Create New Share</h3>
-            
+
             <div className="space-y-4">
               <div className="flex items-center space-x-2">
                 <input
@@ -189,12 +198,12 @@ export function ShareDialog({ isOpen, onClose, chatId, chatTitle }: ShareDialogP
                 </div>
               </div>
 
-              <Button 
-                onClick={createShare} 
-                disabled={isLoading || (!isPublic && !userEmail.trim())}
+              <Button
+                onClick={createShare}
+                disabled={formState.isLoading || (!isPublic && !userEmail.trim())}
                 className="w-full"
               >
-                {isLoading ? 'Creating...' : 'Create Share'}
+                {formState.isLoading ? 'Creating...' : 'Create Share'}
               </Button>
             </div>
           </Card>
@@ -202,7 +211,7 @@ export function ShareDialog({ isOpen, onClose, chatId, chatTitle }: ShareDialogP
           {/* Existing Shares */}
           <div>
             <h3 className="text-lg font-medium mb-4">Active Shares ({shares.length})</h3>
-            
+
             {shares.length === 0 ? (
               <Card className="p-8 text-center">
                 <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -221,7 +230,7 @@ export function ShareDialog({ isOpen, onClose, chatId, chatTitle }: ShareDialogP
                           ) : (
                             <Users className="w-4 h-4 text-green-500" />
                           )}
-                          
+
                           <div>
                             <p className="font-medium">
                               {share.isPublic ? 'Public Link' : share.sharedWithUserId || 'Direct Share'}
@@ -257,7 +266,7 @@ export function ShareDialog({ isOpen, onClose, chatId, chatTitle }: ShareDialogP
                             <span>{copiedToken === share.shareToken ? 'Copied!' : 'Copy Link'}</span>
                           </Button>
                         )}
-                        
+
                         <Button
                           variant="outline"
                           size="sm"

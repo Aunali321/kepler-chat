@@ -5,6 +5,8 @@ import { Download, FileText, Code, FileImage, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { useForm } from '@/lib/stores/form-store';
+import { useNotify } from '@/lib/stores/notification-store';
 
 interface ExportDialogProps {
   isOpen: boolean;
@@ -16,8 +18,11 @@ interface ExportDialogProps {
 export function ExportDialog({ isOpen, onClose, chatId, chatTitle }: ExportDialogProps) {
   const [selectedFormat, setSelectedFormat] = useState<'json' | 'markdown' | 'pdf'>('markdown');
   const [includeFiles, setIncludeFiles] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
+
+  // Use form store for loading/error states
+  const { form: formState, handleSubmit } = useForm('export-dialog');
+  const notify = useNotify();
 
   const exportFormats = [
     {
@@ -49,7 +54,7 @@ export function ExportDialog({ isOpen, onClose, chatId, chatTitle }: ExportDialo
 
   const handleExport = async () => {
     try {
-      setIsExporting(true);
+      // Using form store instead(true);
       setExportSuccess(false);
 
       const response = await fetch('/api/chat/export', {
@@ -71,16 +76,16 @@ export function ExportDialog({ isOpen, onClose, chatId, chatTitle }: ExportDialo
 
       // Get the blob data
       const blob = await response.blob();
-      
+
       // Create download link
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      
+
       // Get filename from response headers or generate one
       const contentDisposition = response.headers.get('Content-Disposition');
       let filename = `chat-export-${Date.now()}`;
-      
+
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(/filename="(.+)"/);
         if (filenameMatch) {
@@ -90,15 +95,15 @@ export function ExportDialog({ isOpen, onClose, chatId, chatTitle }: ExportDialo
         const format = exportFormats.find(f => f.id === selectedFormat);
         filename += format?.extension || '';
       }
-      
+
       a.download = filename;
       document.body.appendChild(a);
       a.click();
-      
+
       // Cleanup
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      
+
       setExportSuccess(true);
       setTimeout(() => {
         setExportSuccess(false);
@@ -108,7 +113,7 @@ export function ExportDialog({ isOpen, onClose, chatId, chatTitle }: ExportDialo
       console.error('Export error:', error);
       alert(error instanceof Error ? error.message : 'Export failed');
     } finally {
-      setIsExporting(false);
+      // Using form store instead(false);
     }
   };
 
@@ -127,7 +132,7 @@ export function ExportDialog({ isOpen, onClose, chatId, chatTitle }: ExportDialo
               </h2>
               <p className="text-sm text-gray-500 mt-1">{chatTitle}</p>
             </div>
-            <Button variant="outline" onClick={onClose} disabled={isExporting}>
+            <Button variant="outline" onClick={onClose} disabled={formState.isLoading}>
               Close
             </Button>
           </div>
@@ -142,11 +147,10 @@ export function ExportDialog({ isOpen, onClose, chatId, chatTitle }: ExportDialo
               {exportFormats.map((format) => (
                 <Card
                   key={format.id}
-                  className={`p-4 cursor-pointer transition-all border-2 ${
-                    selectedFormat === format.id
+                  className={`p-4 cursor-pointer transition-all border-2 ${selectedFormat === format.id
                       ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                       : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
-                  } ${format.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    } ${format.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                   onClick={() => !format.disabled && setSelectedFormat(format.id)}
                 >
                   <div className="flex items-start space-x-3">
@@ -191,7 +195,7 @@ export function ExportDialog({ isOpen, onClose, chatId, chatTitle }: ExportDialo
                   checked={includeFiles}
                   onChange={(e) => setIncludeFiles(e.target.checked)}
                   className="rounded"
-                  disabled={isExporting}
+                  disabled={formState.isLoading}
                 />
                 <Label htmlFor="includeFiles" className="text-sm">
                   Include file attachments metadata
@@ -215,15 +219,15 @@ export function ExportDialog({ isOpen, onClose, chatId, chatTitle }: ExportDialo
 
         {/* Footer */}
         <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
-          <Button variant="outline" onClick={onClose} disabled={isExporting}>
+          <Button variant="outline" onClick={onClose} disabled={formState.isLoading}>
             Cancel
           </Button>
-          <Button 
-            onClick={handleExport} 
-            disabled={isExporting || exportFormats.find(f => f.id === selectedFormat)?.disabled}
+          <Button
+            onClick={handleExport}
+            disabled={formState.isLoading || exportFormats.find(f => f.id === selectedFormat)?.disabled}
             className="min-w-[120px]"
           >
-            {isExporting ? (
+            {formState.isLoading ? (
               <div className="flex items-center space-x-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                 <span>Exporting...</span>

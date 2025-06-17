@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useUIStore } from '@/lib/stores/ui-store';
 
 interface ResponsiveLayoutProps {
   sidebar: React.ReactNode;
@@ -10,21 +11,31 @@ interface ResponsiveLayoutProps {
 }
 
 export function ResponsiveLayout({ sidebar, children }: ResponsiveLayoutProps) {
-  const [isMobile, setIsMobile] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const {
+    isMobile,
+    sidebarOpen,
+    setSidebarOpen,
+    setIsMobile,
+    initialize,
+  } = useUIStore();
 
   useEffect(() => {
+    initialize();
+    
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-      if (window.innerWidth >= 768) {
-        setSidebarOpen(false); // Close mobile sidebar on desktop
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      
+      // Close mobile sidebar when switching to desktop
+      if (!mobile && sidebarOpen && isMobile) {
+        setSidebarOpen(false);
       }
     };
 
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+  }, [initialize, setIsMobile, setSidebarOpen, sidebarOpen, isMobile]);
 
   return (
     <div className="h-screen flex bg-gray-50 dark:bg-gray-900">

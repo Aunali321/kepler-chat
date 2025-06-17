@@ -18,35 +18,48 @@ const passwordResetSchema = z.object({
 type PasswordResetFormData = z.infer<typeof passwordResetSchema>;
 
 export function PasswordResetForm() {
-  const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Notification store available for future use
+  // const notify = useNotify();
+  
+  // Use our new form store
+  const formStore = useForm('password-reset-form');
+  const { form: formState, handleSubmit, setDirty } = formStore;
 
-  const form = useForm<PasswordResetFormData>({
+  const reactHookForm = useReactHookForm<PasswordResetFormData>({
     resolver: zodResolver(passwordResetSchema),
     defaultValues: {
       email: "",
     },
   });
 
-  const onSubmit = async (values: PasswordResetFormData) => {
-    setIsLoading(true);
-    setError(null);
+  // Mark form as dirty when values change
+  reactHookForm.watch(() => {
+    if (!formState.isDirty) {
+      setDirty(true);
+    }
+  });
 
-    try {
-      // TODO: Implement password reset with BetterAuth
-      // For now, simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Mock success for now - in real implementation:
-      // const result = await resetPassword({ email: values.email });
-      
+  const onSubmit = async (_values: PasswordResetFormData) => {
+    const result = await handleSubmit(
+      async () => {
+        // TODO: Implement password reset with BetterAuth
+        // For now, simulate API call
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Mock success for now - in real implementation:
+        // const result = await resetPassword({ email: values.email });
+        
+        return { success: true };
+      },
+      {
+        successMessage: "Password reset link sent successfully!",
+        showNotifications: true,
+      }
+    );
+
+    if (result) {
       setIsSubmitted(true);
-    } catch (err) {
-      setError("Failed to send reset email. Please try again.");
-      console.error("Password reset error:", err);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -60,7 +73,7 @@ export function PasswordResetForm() {
         <div className="space-y-2">
           <h3 className="text-lg font-medium text-gray-900">Check your email</h3>
           <p className="text-sm text-gray-600">
-            We've sent a password reset link to <strong>{form.getValues("email")}</strong>
+            We've sent a password reset link to <strong>{reactHookForm.getValues("email")}</strong>
           </p>
         </div>
 
@@ -70,7 +83,7 @@ export function PasswordResetForm() {
             <button
               onClick={() => {
                 setIsSubmitted(false);
-                setError(null);
+                formStore.clearError();
               }}
               className="text-blue-600 hover:text-blue-500 font-medium"
             >
@@ -101,16 +114,24 @@ export function PasswordResetForm() {
         </div>
       </div>
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          {error && (
+      <Form {...reactHookForm}>
+        <form onSubmit={reactHookForm.handleSubmit(onSubmit)} className="space-y-4">
+          {/* Enhanced error display using form store */}
+          {formState.error && (
             <div className="rounded-md bg-red-50 p-3">
-              <div className="text-sm text-red-700">{error}</div>
+              <div className="text-sm text-red-700">{formState.error}</div>
+            </div>
+          )}
+
+          {/* Enhanced success display using form store */}
+          {formState.success && (
+            <div className="rounded-md bg-green-50 p-3">
+              <div className="text-sm text-green-700">{formState.success}</div>
             </div>
           )}
 
           <FormField
-            control={form.control}
+            control={reactHookForm.control}
             name="email"
             render={({ field }) => (
               <FormItem>
@@ -120,7 +141,7 @@ export function PasswordResetForm() {
                     type="email"
                     placeholder="Enter your email"
                     autoComplete="email"
-                    disabled={isLoading}
+                    disabled={formState.isLoading}
                     {...field}
                   />
                 </FormControl>
@@ -129,8 +150,8 @@ export function PasswordResetForm() {
             )}
           />
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? (
+          <Button type="submit" className="w-full" disabled={formState.isLoading}>
+            {formState.isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Sending reset link...

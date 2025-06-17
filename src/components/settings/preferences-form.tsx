@@ -1,89 +1,40 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Save, Palette, Globe, Settings, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
-import type { UserPreferences } from '@/lib/db/types';
+import { useSettingsStore } from '@/lib/stores/settings-store';
 
 export function PreferencesForm() {
-  const [preferences, setPreferences] = useState<UserPreferences | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setSaving] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
+  const {
+    // State
+    theme,
+    language,
+    defaultModel,
+    defaultProvider,
+    chatSettings,
+    uiSettings,
+    notificationSettings,
+    isLoading,
+    isSaving,
+    hasChanges,
+    // Actions
+    loadPreferences,
+    savePreferences,
+    updatePreference,
+    updateChatSetting,
+    updateUISetting,
+    updateNotificationSetting,
+  } = useSettingsStore();
 
   useEffect(() => {
+    // Load preferences on component mount
     loadPreferences();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const loadPreferences = async () => {
-    try {
-      const response = await fetch('/api/user/preferences');
-      if (response.ok) {
-        const data = await response.json();
-        setPreferences(data.preferences);
-      }
-    } catch (error) {
-      console.error('Error loading preferences:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const updatePreference = (key: keyof UserPreferences, value: any) => {
-    if (!preferences) return;
-    
-    setPreferences({ ...preferences, [key]: value });
-    setHasChanges(true);
-  };
-
-  const updateChatSetting = (key: string, value: any) => {
-    if (!preferences) return;
-    
-    const chatSettings = { ...(preferences.chatSettings as object || {}), [key]: value };
-    updatePreference('chatSettings', chatSettings);
-  };
-
-  const updateUISetting = (key: string, value: any) => {
-    if (!preferences) return;
-    
-    const uiSettings = { ...(preferences.uiSettings as object || {}), [key]: value };
-    updatePreference('uiSettings', uiSettings);
-  };
-
-  const updateNotificationSetting = (key: string, value: any) => {
-    if (!preferences) return;
-    
-    const notificationSettings = { ...(preferences.notificationSettings as object || {}), [key]: value };
-    updatePreference('notificationSettings', notificationSettings);
-  };
-
-  const savePreferences = async () => {
-    if (!preferences || !hasChanges) return;
-
-    try {
-      setSaving(true);
-      const response = await fetch('/api/user/preferences', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(preferences),
-      });
-
-      if (response.ok) {
-        setHasChanges(false);
-        // Apply theme change immediately
-        if (preferences.theme) {
-          document.documentElement.setAttribute('data-theme', preferences.theme);
-        }
-      }
-    } catch (error) {
-      console.error('Error saving preferences:', error);
-    } finally {
-      setSaving(false);
-    }
-  };
 
   if (isLoading) {
     return (
@@ -95,20 +46,9 @@ export function PreferencesForm() {
     );
   }
 
-  if (!preferences) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-gray-500">Failed to load preferences</p>
-        <Button onClick={loadPreferences} className="mt-4">
-          Retry
-        </Button>
-      </div>
-    );
-  }
-
-  const chatSettings = (preferences.chatSettings as any) || {};
-  const uiSettings = (preferences.uiSettings as any) || {};
-  const notificationSettings = (preferences.notificationSettings as any) || {};
+  const chatSettingsObj = (chatSettings as any) || {};
+  const uiSettingsObj = (uiSettings as any) || {};
+  const notificationSettingsObj = (notificationSettings as any) || {};
 
   return (
     <div className="space-y-6">
@@ -118,13 +58,13 @@ export function PreferencesForm() {
           <Palette className="w-5 h-5 mr-2" />
           Appearance
         </h3>
-        
+
         <div className="space-y-4">
           <div>
             <Label htmlFor="theme">Theme</Label>
             <select
               id="theme"
-              value={preferences.theme || 'system'}
+              value={theme || 'system'}
               onChange={(e) => updatePreference('theme', e.target.value)}
               className="w-full p-2 border rounded-md mt-1"
             >
@@ -138,7 +78,7 @@ export function PreferencesForm() {
             <Label htmlFor="fontSize">Font Size</Label>
             <select
               id="fontSize"
-              value={uiSettings.fontSize || 'medium'}
+              value={uiSettingsObj.fontSize || 'medium'}
               onChange={(e) => updateUISetting('fontSize', e.target.value)}
               className="w-full p-2 border rounded-md mt-1"
             >
@@ -152,7 +92,7 @@ export function PreferencesForm() {
             <Label htmlFor="sidebarWidth">Sidebar Width</Label>
             <select
               id="sidebarWidth"
-              value={uiSettings.sidebarWidth || 'normal'}
+              value={uiSettingsObj.sidebarWidth || 'normal'}
               onChange={(e) => updateUISetting('sidebarWidth', e.target.value)}
               className="w-full p-2 border rounded-md mt-1"
             >
@@ -170,13 +110,13 @@ export function PreferencesForm() {
           <Globe className="w-5 h-5 mr-2" />
           Language & Region
         </h3>
-        
+
         <div className="space-y-4">
           <div>
             <Label htmlFor="language">Language</Label>
             <select
               id="language"
-              value={preferences.language || 'en'}
+              value={language || 'en'}
               onChange={(e) => updatePreference('language', e.target.value)}
               className="w-full p-2 border rounded-md mt-1"
             >
@@ -195,7 +135,7 @@ export function PreferencesForm() {
             <Label htmlFor="timezone">Timezone</Label>
             <select
               id="timezone"
-              value={uiSettings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone}
+              value={uiSettingsObj.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone}
               onChange={(e) => updateUISetting('timezone', e.target.value)}
               className="w-full p-2 border rounded-md mt-1"
             >
@@ -218,13 +158,13 @@ export function PreferencesForm() {
           <Settings className="w-5 h-5 mr-2" />
           Chat Settings
         </h3>
-        
+
         <div className="space-y-4">
           <div>
             <Label htmlFor="defaultModel">Default AI Model</Label>
             <select
               id="defaultModel"
-              value={preferences.defaultModel || 'gpt-4o-mini'}
+              value={defaultModel || 'gpt-4o-mini'}
               onChange={(e) => updatePreference('defaultModel', e.target.value)}
               className="w-full p-2 border rounded-md mt-1"
             >
@@ -232,7 +172,7 @@ export function PreferencesForm() {
               <option value="gpt-4o-mini">GPT-4o Mini</option>
               <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
               <option value="claude-3-haiku">Claude 3 Haiku</option>
-              <option value="gemini-pro">Gemini Pro</option>
+              <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
             </select>
           </div>
 
@@ -240,7 +180,7 @@ export function PreferencesForm() {
             <Label htmlFor="defaultProvider">Default Provider</Label>
             <select
               id="defaultProvider"
-              value={preferences.defaultProvider || 'openai'}
+              value={defaultProvider || 'openai'}
               onChange={(e) => updatePreference('defaultProvider', e.target.value)}
               className="w-full p-2 border rounded-md mt-1"
             >
@@ -256,7 +196,7 @@ export function PreferencesForm() {
               <input
                 type="checkbox"
                 id="autoSave"
-                checked={chatSettings.autoSave !== false}
+                checked={chatSettingsObj.autoSave !== false}
                 onChange={(e) => updateChatSetting('autoSave', e.target.checked)}
                 className="rounded"
               />
@@ -267,7 +207,7 @@ export function PreferencesForm() {
               <input
                 type="checkbox"
                 id="streamingResponses"
-                checked={chatSettings.streamingResponses !== false}
+                checked={chatSettingsObj.streamingResponses !== false}
                 onChange={(e) => updateChatSetting('streamingResponses', e.target.checked)}
                 className="rounded"
               />
@@ -278,7 +218,7 @@ export function PreferencesForm() {
               <input
                 type="checkbox"
                 id="showTokenCount"
-                checked={chatSettings.showTokenCount === true}
+                checked={chatSettingsObj.showTokenCount === true}
                 onChange={(e) => updateChatSetting('showTokenCount', e.target.checked)}
                 className="rounded"
               />
@@ -294,13 +234,13 @@ export function PreferencesForm() {
           <Bell className="w-5 h-5 mr-2" />
           Notifications
         </h3>
-        
+
         <div className="space-y-3">
           <div className="flex items-center space-x-2">
             <input
               type="checkbox"
               id="chatNotifications"
-              checked={notificationSettings.chatNotifications !== false}
+              checked={notificationSettingsObj.chatNotifications !== false}
               onChange={(e) => updateNotificationSetting('chatNotifications', e.target.checked)}
               className="rounded"
             />
@@ -311,7 +251,7 @@ export function PreferencesForm() {
             <input
               type="checkbox"
               id="shareNotifications"
-              checked={notificationSettings.shareNotifications !== false}
+              checked={notificationSettingsObj.shareNotifications !== false}
               onChange={(e) => updateNotificationSetting('shareNotifications', e.target.checked)}
               className="rounded"
             />
@@ -322,7 +262,7 @@ export function PreferencesForm() {
             <input
               type="checkbox"
               id="emailNotifications"
-              checked={notificationSettings.emailNotifications === true}
+              checked={notificationSettingsObj.emailNotifications === true}
               onChange={(e) => updateNotificationSetting('emailNotifications', e.target.checked)}
               className="rounded"
             />
@@ -333,8 +273,8 @@ export function PreferencesForm() {
 
       {/* Save Button */}
       <div className="flex justify-end">
-        <Button 
-          onClick={savePreferences} 
+        <Button
+          onClick={savePreferences}
           disabled={!hasChanges || isSaving}
           className="min-w-[120px]"
         >

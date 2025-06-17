@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Plus, Folder, Tag, Archive, Pin, MoreHorizontal, FolderPlus, TagIcon } from 'lucide-react';
+import { Search, Plus, Folder, Archive, Pin, MoreHorizontal, FolderPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card } from '@/components/ui/card';
-import type { Chat, ChatFolder, ChatTag, OrganizedChats } from '@/lib/db/types';
+import { useChatDataStore, initializeChatData } from '@/lib/stores/chat-data-store';
 
 interface ChatSidebarProps {
   selectedChatId?: string;
@@ -14,94 +13,43 @@ interface ChatSidebarProps {
 
 export function ChatSidebar({ selectedChatId }: ChatSidebarProps) {
   const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [organizedChats, setOrganizedChats] = useState<OrganizedChats | null>(null);
-  const [folders, setFolders] = useState<ChatFolder[]>([]);
-  const [tags, setTags] = useState<ChatTag[]>([]);
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
-  const [isLoading, setIsLoading] = useState(true);
-  const [showCreateFolder, setShowCreateFolder] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
+  
+  // Chat data store
+  const {
+    organizedChats,
+    folders,
+    searchQuery,
+    expandedFolders,
+    isLoading,
+    showCreateFolder,
+    newFolderName,
+    loadData,
+    setSearchQuery,
+    performSearch,
+    toggleFolder,
+    createFolder,
+    setShowCreateFolder,
+    setNewFolderName,
+    resetCreateFolderForm,
+  } = useChatDataStore();
 
   useEffect(() => {
+    initializeChatData();
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadData = async () => {
-    try {
-      setIsLoading(true);
-      const [chatsRes, foldersRes, tagsRes] = await Promise.all([
-        fetch('/api/chat/organize'),
-        fetch('/api/chat/folders'),
-        fetch('/api/chat/tags'),
-      ]);
-
-      if (chatsRes.ok) {
-        const chatsData = await chatsRes.json();
-        setOrganizedChats(chatsData);
-      }
-
-      if (foldersRes.ok) {
-        const foldersData = await foldersRes.json();
-        setFolders(foldersData.folders);
-      }
-
-      if (tagsRes.ok) {
-        const tagsData = await tagsRes.json();
-        setTags(tagsData.tags);
-      }
-    } catch (error) {
-      console.error('Error loading sidebar data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSearch = async (query: string) => {
+  const handleSearch = (query: string) => {
     setSearchQuery(query);
     if (query.trim()) {
-      // Implement search functionality
-      try {
-        const response = await fetch(`/api/chat/search?query=${encodeURIComponent(query)}`);
-        if (response.ok) {
-          const results = await response.json();
-          // Handle search results - you might want to show them in a different view
-          console.log('Search results:', results);
-        }
-      } catch (error) {
-        console.error('Search error:', error);
-      }
+      performSearch(query);
     }
   };
 
-  const toggleFolder = (folderId: string) => {
-    const newExpanded = new Set(expandedFolders);
-    if (newExpanded.has(folderId)) {
-      newExpanded.delete(folderId);
-    } else {
-      newExpanded.add(folderId);
-    }
-    setExpandedFolders(newExpanded);
-  };
-
-  const createFolder = async () => {
-    if (!newFolderName.trim()) return;
-
-    try {
-      const response = await fetch('/api/chat/folders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newFolderName.trim() }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setFolders([...folders, data.folder]);
-        setNewFolderName('');
-        setShowCreateFolder(false);
-      }
-    } catch (error) {
-      console.error('Error creating folder:', error);
+  const handleCreateFolder = async () => {
+    const success = await createFolder(newFolderName);
+    if (!success) {
+      console.error('Failed to create folder');
     }
   };
 
@@ -141,7 +89,7 @@ export function ChatSidebar({ selectedChatId }: ChatSidebarProps) {
 
   if (isLoading) {
     return (
-      <div className="w-80 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 p-4">
+      <div className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 p-4" style={{ width: 'var(--sidebar-width)' }}>
         <div className="animate-pulse">
           <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
           <div className="space-y-3">
@@ -155,7 +103,7 @@ export function ChatSidebar({ selectedChatId }: ChatSidebarProps) {
   }
 
   return (
-    <div className="w-80 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col h-full">
+    <div className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col h-full" style={{ width: 'var(--sidebar-width)' }}>
       {/* Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-800">
         <div className="flex items-center justify-between mb-4">
@@ -216,20 +164,17 @@ export function ChatSidebar({ selectedChatId }: ChatSidebarProps) {
                   placeholder="Folder name"
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && createFolder()}
+                  onKeyPress={(e) => e.key === 'Enter' && handleCreateFolder()}
                   className="text-sm"
                   autoFocus
                 />
-                <Button size="sm" onClick={createFolder} disabled={!newFolderName.trim()}>
+                <Button size="sm" onClick={handleCreateFolder} disabled={!newFolderName.trim()}>
                   Add
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    setShowCreateFolder(false);
-                    setNewFolderName('');
-                  }}
+                  onClick={resetCreateFolderForm}
                 >
                   Cancel
                 </Button>

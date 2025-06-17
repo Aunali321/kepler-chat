@@ -57,9 +57,13 @@ export async function POST(req: Request) {
 
     // 2. Parse and validate request
     const body = await req.json();
+    console.log('=== CHAT API DEBUG ===');
+    console.log('Received body:', JSON.stringify(body, null, 2));
+    
     const parseResult = ChatRequestSchema.safeParse(body);
     
     if (!parseResult.success) {
+      console.error('Schema validation failed:', parseResult.error);
       return new Response('Invalid request format', { status: 400 });
     }
 
@@ -71,6 +75,11 @@ export async function POST(req: Request) {
       systemPrompt,
       enabledTools = defaultTools,
     } = parseResult.data;
+
+    console.log('📥 Messages received:', messages.length);
+    console.log('📎 Messages with attachments:', 
+      messages.filter(m => m.experimental_attachments?.length > 0).length
+    );
 
     // 3. Determine model configuration
     let provider: string;
@@ -189,7 +198,16 @@ export async function POST(req: Request) {
     
     // Combine and convert to CoreMessages
     const allMessages = [...historyMessages, ...processedMessages];
+    console.log('🔄 All messages before convertToCoreMessages:', 
+      allMessages.map(m => ({ 
+        role: m.role, 
+        hasAttachments: !!m.experimental_attachments?.length,
+        attachmentCount: m.experimental_attachments?.length || 0
+      }))
+    );
+    
     const coreMessages = convertToCoreMessages(allMessages);
+    console.log('✅ Converted to core messages:', coreMessages.length);
 
     // 7. Add system prompt if provided
     const modelConfigData = chat.modelConfig as any;
