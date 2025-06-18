@@ -189,7 +189,10 @@ export function MessageRenderer({
                     attachment?.contentType?.startsWith("text/")
                 )
                 .map((attachment: any, index: number) => (
-                  <div key={index} className="border rounded-lg p-3 bg-gray-50">
+                  <div
+                    key={index}
+                    className="border rounded-lg p-3 bg-muted/30"
+                  >
                     {attachment.contentType?.startsWith("image/") && (
                       <img
                         src={attachment.url}

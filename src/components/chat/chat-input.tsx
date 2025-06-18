@@ -252,7 +252,7 @@ export function ChatInput({
     <div className="space-y-3">
       {/* Upload error */}
       {uploadError && (
-        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+        <div className="text-sm text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
           {uploadError}
         </div>
       )}
@@ -284,10 +284,10 @@ export function ChatInput({
                 className={cn(
                   "flex items-center gap-2 rounded-lg px-3 py-2 text-sm",
                   isUploading && !isUploaded
-                    ? "bg-blue-50 border border-blue-200"
+                    ? "bg-blue-500/10 border border-blue-500/20"
                     : isUploaded
-                    ? "bg-green-50 border border-green-200"
-                    : "bg-gray-100"
+                    ? "bg-green-500/10 border border-green-500/20"
+                    : "bg-muted/30"
                 )}
               >
                 {isUploading && !isUploaded ? (
