@@ -15,8 +15,6 @@ export function PreferencesForm() {
     // State
     theme,
     language,
-    defaultModel,
-    defaultProvider,
     chatSettings,
     uiSettings,
     notificationSettings,
@@ -192,56 +190,10 @@ export function PreferencesForm() {
         </h3>
 
         <div className="space-y-4">
-          <div>
-            <Label htmlFor="defaultModel">Default AI Model</Label>
-            <select
-              id="defaultModel"
-              value={defaultModel || (availableModels[0]?.value || '')}
-              onChange={(e) => updatePreference('defaultModel', e.target.value)}
-              className="w-full p-2 border rounded-md mt-1"
-              disabled={availableModels.length === 0}
-            >
-              {availableModels.length === 0 ? (
-                <option value="">No models available - configure providers first</option>
-              ) : (
-                availableModels.map(model => (
-                  <option key={`${model.provider}-${model.value}`} value={model.value}>
-                    {model.label}
-                  </option>
-                ))
-              )}
-            </select>
-            {availableModels.length === 0 && (
-              <p className="text-sm text-muted-foreground mt-1">
-                Add and validate API keys in the AI Service Providers section below to see available models.
-              </p>
-            )}
-          </div>
-
-          <div>
-            <Label htmlFor="defaultProvider">Default Provider</Label>
-            <select
-              id="defaultProvider"
-              value={defaultProvider || (availableProviders[0] || '')}
-              onChange={(e) => updatePreference('defaultProvider', e.target.value)}
-              className="w-full p-2 border rounded-md mt-1"
-              disabled={availableProviders.length === 0}
-            >
-              {availableProviders.length === 0 ? (
-                <option value="">No providers available - configure providers first</option>
-              ) : (
-                availableProviders.map(providerId => (
-                  <option key={providerId} value={providerId}>
-                    {providerId.charAt(0).toUpperCase() + providerId.slice(1)}
-                  </option>
-                ))
-              )}
-            </select>
-            {availableProviders.length === 0 && (
-              <p className="text-sm text-muted-foreground mt-1">
-                Add and validate API keys in the AI Service Providers section below to see available providers.
-              </p>
-            )}
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>Model Selection:</strong> AI model and provider selection is now managed per-conversation. Use the model selector in each chat to choose your preferred AI provider and model for that specific conversation.
+            </p>
           </div>
 
           <div className="space-y-3">

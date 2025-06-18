@@ -9,8 +9,6 @@ import {
 const updatePreferencesSchema = z.object({
   theme: z.enum(['light', 'dark', 'system']).optional(),
   language: z.string().max(10).optional(),
-  defaultModel: z.string().max(100).optional(),
-  defaultProvider: z.string().max(50).optional(),
   chatSettings: z.record(z.any()).optional(),
   uiSettings: z.record(z.any()).optional(),
   notificationSettings: z.record(z.any()).optional(),

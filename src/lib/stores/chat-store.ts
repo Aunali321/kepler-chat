@@ -241,14 +241,7 @@ export const useChatStore = create<ChatState>()(
             const preferences = data.preferences;
 
             set((state) => {
-              if (preferences.defaultProvider) {
-                state.selectedProvider = preferences.defaultProvider;
-              }
-              if (preferences.defaultModel) {
-                state.selectedModel = preferences.defaultModel;
-              }
-
-              // Load chat settings from preferences
+              // Load chat settings from preferences (but not provider/model)
               const chatSettings = preferences.chatSettings || {};
               if (typeof chatSettings.streamingResponses === 'boolean') {
                 state.streamingEnabled = chatSettings.streamingResponses;

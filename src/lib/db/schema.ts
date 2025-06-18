@@ -106,8 +106,6 @@ export const userPreferences = pgTable('user_preferences', {
   userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id, { onDelete: 'cascade' }).unique(),
   theme: varchar('theme', { length: 20 }).default('system'), // 'light', 'dark', 'system'
   language: varchar('language', { length: 10 }).default('en'),
-  defaultModel: varchar('default_model', { length: 100 }).default('gpt-4.1-mini'),
-  defaultProvider: varchar('default_provider', { length: 50 }).default('openai'),
   chatSettings: jsonb('chat_settings').default('{}'), // Stream speed, auto-save, etc.
   uiSettings: jsonb('ui_settings').default('{}'), // Sidebar width, font size, etc.
   notificationSettings: jsonb('notification_settings').default('{}'),

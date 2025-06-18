@@ -7,8 +7,6 @@ export interface SettingsState {
   // User preferences (matching database structure)
   theme: string | null;
   language: string | null;
-  defaultModel: string | null;
-  defaultProvider: string | null;
   chatSettings: unknown;
   uiSettings: unknown;
   notificationSettings: unknown;
@@ -41,8 +39,6 @@ export interface SettingsState {
 const defaultPreferences = {
   theme: 'system',
   language: 'en',
-  defaultModel: 'gpt-4.1-mini',
-  defaultProvider: 'openai',
   chatSettings: {
     autoSave: true,
     streamingResponses: true,
