@@ -2,9 +2,10 @@ import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { google } from '@ai-sdk/google';
 import { openrouter } from '@openrouter/ai-sdk-provider';
-import { getUserApiKeys, getUserApiKey, getUserCustomModels, getUserProviderPreferences } from '@/lib/db/queries';
+import { getUserApiKeys, getUserApiKey, getUserCustomModels, getUserProviderPreferences, setApiKeyValidationStatus } from '@/lib/db/queries';
 import { decryptApiKey } from '@/lib/crypto';
 import type { ProviderType, ModelConfig, ProviderConfig } from '@/lib/db/types';
+import { ApiKeyValidator } from './api-key-validator';
 
 // Default models for each provider (fallback when no custom models configured)
 const DEFAULT_MODELS: Record<ProviderType, ModelConfig[]> = {
@@ -263,58 +264,43 @@ export class ProviderManager {
   }
 
   /**
-   * Get model instance with user-configured API key
+   * Get a model instance for a specific provider and model
+   * This is the core method for getting a model instance
    */
   async getModelInstance(userId: string, providerId: ProviderType, modelId: string) {
-    // Ensure we have the latest user data
-    await this.initialize(userId);
+    // Check if API key is loaded
+    let apiKey = this.userApiKeys.get(providerId);
 
-    const apiKey = this.userApiKeys.get(providerId);
+    // If key not loaded, try to load and validate it from DB
+    if (!apiKey) {
+      apiKey = await this._loadAndValidateKey(userId, providerId);
+    }
+    
+    // If key is still not available, throw an error
     if (!apiKey) {
       throw new Error(`No valid API key for provider ${providerId}`);
-    }
-
-    // Get model configuration
-    const defaultModels = DEFAULT_MODELS[providerId] || [];
-    const defaultModel = defaultModels.find(m => m.id === modelId);
-
-    // Check if it's a custom model
-    const customModels = this.userCustomModels.get(providerId) || [];
-    const customModel = customModels.find(m => m.id === modelId);
-
-    const modelConfig = defaultModel || customModel;
-    if (!modelConfig) {
-      throw new Error(`Model ${modelId} not found for provider ${providerId}`);
     }
 
     // Create provider instance with user's API key
     switch (providerId) {
       case 'openai': {
         const { createOpenAI } = await import('@ai-sdk/openai');
-        const openaiProvider = createOpenAI({
-          apiKey,
-        });
+        const openaiProvider = createOpenAI({ apiKey });
         return openaiProvider(modelId);
       }
       case 'anthropic': {
         const { createAnthropic } = await import('@ai-sdk/anthropic');
-        const anthropicProvider = createAnthropic({
-          apiKey,
-        });
+        const anthropicProvider = createAnthropic({ apiKey });
         return anthropicProvider(modelId);
       }
       case 'google': {
         const { createGoogleGenerativeAI } = await import('@ai-sdk/google');
-        const googleProvider = createGoogleGenerativeAI({
-          apiKey,
-        });
+        const googleProvider = createGoogleGenerativeAI({ apiKey });
         return googleProvider(modelId);
       }
       case 'openrouter': {
         const { createOpenRouter } = await import('@openrouter/ai-sdk-provider');
-        const openRouterProvider = createOpenRouter({
-          apiKey,
-        });
+        const openRouterProvider = createOpenRouter({ apiKey });
         return openRouterProvider(modelId);
       }
       default:
@@ -399,27 +385,65 @@ export class ProviderManager {
    * Check if a provider is available for a user
    */
   async isProviderAvailable(userId: string, provider: ProviderType): Promise<boolean> {
-    await this.initialize(userId);
+    let apiKey = this.userApiKeys.get(provider);
+    if (!apiKey) {
+      apiKey = await this._loadAndValidateKey(userId, provider);
+    }
+    return !!apiKey;
+  }
 
-    const hasApiKey = this.userApiKeys.has(provider);
-    const userPreference = this.userPreferences.get(provider);
+  /**
+   * Load and validate a single key from the database.
+   * If valid, it's added to the cache.
+   */
+  private async _loadAndValidateKey(userId: string, provider: ProviderType): Promise<string | undefined> {
+    console.log(`🔑 Attempting to load and validate key for ${provider}`);
+    const storedKey = await getUserApiKey(userId, provider);
 
-    return hasApiKey && userPreference?.isEnabled === true;
+    if (!storedKey) {
+      console.log(`🔑 No key found in DB for ${provider}`);
+      return undefined;
+    }
+
+    try {
+      const decryptedKey = decryptApiKey(storedKey.encryptedApiKey);
+      const result = await ApiKeyValidator.validateApiKey(provider, decryptedKey);
+      
+      await setApiKeyValidationStatus(
+        userId, 
+        provider, 
+        result.isValid ? 'valid' : 'invalid'
+      );
+      
+      if (result.isValid) {
+        console.log(`🔑 ✅ Key for ${provider} is valid and now cached.`);
+        this.userApiKeys.set(provider, decryptedKey);
+        return decryptedKey;
+      } else {
+        console.warn(`🔑 ❌ Key for ${provider} is invalid: ${result.error}`);
+        return undefined;
+      }
+    } catch (error) {
+      console.error(`🔑 🚨 Error validating key for ${provider}:`, error);
+      return undefined;
+    }
   }
 }
 
-// Singleton instance
+// Global instance of the provider manager
 export const providerManager = ProviderManager.getInstance();
 
 // Legacy functions for backward compatibility
 export async function getModelInstance(userId: string, providerId: ProviderType, modelId: string) {
-  await providerManager.initialize(userId);
-  return providerManager.getModelInstance(userId, providerId, modelId);
+  const manager = ProviderManager.getInstance();
+  await manager.initialize(userId);
+  return await manager.getModelInstance(userId, providerId, modelId);
 }
 
 export async function getDefaultModel(userId: string) {
-  await providerManager.initialize(userId);
-  return providerManager.getDefaultModel(userId);
+  const manager = ProviderManager.getInstance();
+  await manager.initialize(userId);
+  return await manager.getDefaultModel(userId);
 }
 
 export async function getAvailableProviders(userId: string) {

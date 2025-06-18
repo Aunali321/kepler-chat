@@ -104,10 +104,13 @@ export async function POST(req: Request) {
 
     console.log('📥 Messages received:', messages.length);
     console.log('📎 Messages with attachments:', 
-      messages.filter(m => m.experimental_attachments?.length > 0).length
+      messages.filter(m => m.experimental_attachments && m.experimental_attachments.length > 0).length
     );
 
-    // 3. Determine model configuration
+    // 3. Initialize provider manager
+    await providerManager.initialize(userId);
+
+    // 4. Determine model configuration
     let provider: string;
     let model: string;
 
@@ -116,7 +119,6 @@ export async function POST(req: Request) {
       model = requestedModel;
     } else {
       // Use default model if not specified
-      await providerManager.initialize(userId);
       const defaultModel = await providerManager.getDefaultModel(userId);
       if (!defaultModel) {
         return new Response('No available AI providers. Please configure API keys in settings.', { status: 400 });
@@ -125,7 +127,7 @@ export async function POST(req: Request) {
       model = defaultModel.modelId;
     }
 
-    // 4. Get or create chat
+    // 5. Get or create chat
     let chat;
     let chatHistory: any[] = [];
 
@@ -151,8 +153,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // 5. Get model instance and configuration
-    await providerManager.initialize(userId);
+    // 6. Get model instance and configuration
     const modelInstance = await providerManager.getModelInstance(userId, provider as any, model);
     
     // Get model configuration from provider manager
@@ -168,7 +169,7 @@ export async function POST(req: Request) {
       return new Response('Model configuration not found', { status: 400 });
     }
 
-    // 6. Prepare messages for the AI model
+    // 7. Prepare messages for the AI model
     // Convert chat history to Message format (filter valid roles)
     const historyMessages = chatHistory
       .filter(msg => ['user', 'assistant', 'system'].includes(msg.role))
@@ -244,15 +245,15 @@ export async function POST(req: Request) {
     console.log('🔄 All messages before convertToCoreMessages:', 
       allMessages.map(m => ({ 
         role: m.role, 
-        hasAttachments: !!m.experimental_attachments?.length,
-        attachmentCount: m.experimental_attachments?.length || 0
+        hasAttachments: !!(m as any).experimental_attachments?.length,
+        attachmentCount: (m as any).experimental_attachments?.length || 0
       }))
     );
     
-    const coreMessages = convertToCoreMessages(allMessages);
+    const coreMessages: CoreMessage[] = convertToCoreMessages(allMessages as any);
     console.log('✅ Converted to core messages:', coreMessages.length);
 
-    // 7. Add system prompt if provided
+    // 8. Add system prompt if provided
     const modelConfigData = chat.modelConfig as any;
     const systemMessage = systemPrompt || modelConfigData?.systemPrompt;
     if (systemMessage) {
@@ -262,7 +263,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // 8. Save user message(s) to database
+    // 9. Save user message(s) to database
     for (const message of messages.filter(m => m.role === 'user')) {
       // Create metadata object with experimental_attachments if present
       const metadata = message.experimental_attachments ? {
@@ -280,10 +281,10 @@ export async function POST(req: Request) {
       });
     }
 
-    // 9. Get enabled tools
+    // 10. Get enabled tools
     const tools = getAvailableTools(enabledTools.filter(name => isToolAvailable(name)) as ToolName[]);
 
-    // 10. Stream AI response
+    // 11. Stream AI response
     const result = await streamText({
       model: modelInstance,
       messages: coreMessages,
@@ -341,7 +342,7 @@ export async function POST(req: Request) {
       },
     });
 
-    // 11. Return streaming response
+    // 12. Return streaming response
     return result.toDataStreamResponse();
 
   } catch (error) {

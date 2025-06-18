@@ -235,13 +235,57 @@ export const urlFetchTool = tool({
   },
 });
 
+export const exaSearchTool = tool({
+  description: 'Perform a web search using the Exa API for high-quality results.',
+  parameters: z.object({
+    query: z.string().describe('The search query to send to Exa.'),
+  }),
+  execute: async ({ query }) => {
+    try {
+      const response = await fetch('https://api.exa.ai/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.EXA_API_KEY || '',
+        },
+        body: JSON.stringify({
+          query: query,
+          contents: {
+            text: true,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Exa API Error: ${response.status} ${errorText}`);
+      }
+
+      const data = await response.json();
+      return {
+        success: true,
+        results: data.results,
+        summary: `Exa search for "${query}" returned ${data.results.length} results.`,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        success: false,
+        error: errorMessage,
+        summary: `Exa search for "${query}" failed.`,
+      };
+    }
+  },
+});
+
 // Registry of all available tools
 export const toolRegistry = {
-  weather: weatherTool,
-  calculator: calculatorTool,
-  webSearch: webSearchTool,
-  codeExecutor: codeExecutorTool,
-  urlFetch: urlFetchTool,
+  // weather: weatherTool,
+  // calculator: calculatorTool,
+  // webSearch: webSearchTool,
+  // codeExecutor: codeExecutorTool,
+  // urlFetch: urlFetchTool,
+  exaSearch: exaSearchTool,
 };
 
 export type ToolName = keyof typeof toolRegistry;
@@ -269,40 +313,46 @@ export const toolMetadata: Record<ToolName, {
   category: 'utility' | 'search' | 'computation' | 'development';
   icon: string;
 }> = {
-  weather: {
-    name: 'Weather',
-    description: 'Get current weather information',
-    category: 'utility',
-    icon: '🌤️',
-  },
-  calculator: {
-    name: 'Calculator',
-    description: 'Perform mathematical calculations',
-    category: 'computation',
-    icon: '🧮',
-  },
-  webSearch: {
-    name: 'Web Search',
-    description: 'Search the internet for information',
+  // weather: {
+  //   name: 'Weather',
+  //   description: 'Get current weather information',
+  //   category: 'utility',
+  //   icon: '🌤️',
+  // },
+  // calculator: {
+  //   name: 'Calculator',
+  //   description: 'Perform mathematical calculations',
+  //   category: 'computation',
+  //   icon: '🧮',
+  // },
+  // webSearch: {
+  //   name: 'Web Search',
+  //   description: 'Search the web for information',
+  //   category: 'search',
+  //   icon: '🌐',
+  // },
+  // codeExecutor: {
+  //   name: 'Code Executor',
+  //   description: 'Execute sandboxed code snippets',
+  //   category: 'development',
+  //   icon: '💻',
+  // },
+  // urlFetch: {
+  //   name: 'URL Fetcher',
+  //   description: 'Fetch and analyze content from a URL',
+  //   category: 'utility',
+  //   icon: '🔗',
+  // },
+  exaSearch: {
+    name: 'Exa Search',
+    description: 'Advanced web search with Exa',
     category: 'search',
-    icon: '🔍',
-  },
-  codeExecutor: {
-    name: 'Code Executor',
-    description: 'Execute code snippets safely',
-    category: 'development',
-    icon: '💻',
-  },
-  urlFetch: {
-    name: 'URL Fetcher',
-    description: 'Fetch and analyze web page content',
-    category: 'utility',
-    icon: '🌐',
+    icon: '🔎',
   },
 };
 
-// Default tools that are always available
-export const defaultTools: ToolName[] = ['calculator', 'weather', 'webSearch'];
+// Default enabled tools
+export const defaultTools: ToolName[] = ['exaSearch'];
 
 // Get tool metadata for display
 export function getToolMetadata(toolName: ToolName) {
