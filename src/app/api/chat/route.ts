@@ -8,13 +8,14 @@ import {
   createChat, 
   getMessagesByChatId, 
   createMessage, 
-  createUsageMetric 
+  createUsageMetric,
+  getChatsByUserId
 } from '@/lib/db/queries';
 
 // Maximum duration for the API route (30 seconds)
 export const maxDuration = 30;
 
-// GET handler for creating new chats
+// GET handler for fetching all chats
 export async function GET(req: Request) {
   try {
     // Authenticate user
@@ -25,20 +26,13 @@ export async function GET(req: Request) {
 
     const { user } = authResult;
 
-    // Create new chat
-    const chat = await createChat({
-      userId: user.id,
-      title: 'New Chat',
-      modelConfig: {
-        provider: 'google',
-        model: 'gemini-2.0-flash',
-      },
-    });
+    // Fetch all chats for the user
+    const chats = await getChatsByUserId(user.id);
 
-    return Response.json({ chat });
+    return Response.json({ chats });
 
   } catch (error) {
-    console.error('Create chat error:', error);
+    console.error('Fetch chats error:', error);
     return new Response('Internal server error', { status: 500 });
   }
 }

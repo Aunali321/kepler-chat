@@ -1,27 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  Search,
-  Plus,
-  Folder,
-  Archive,
-  Pin,
-  MoreHorizontal,
-  FolderPlus,
-  Settings,
-} from "lucide-react";
+import { Search, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  useChatDataStore,
-  initializeChatData,
-} from "@/lib/stores/chat-data-store";
 import { createNewChat } from "@/app/actions";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { cn } from "@/lib/utils";
+import type { Chat } from "@/lib/db/types";
 
 interface ChatSidebarProps {
   selectedChatId?: string;
@@ -31,59 +19,46 @@ interface ChatSidebarProps {
 export function ChatSidebar({ selectedChatId, className }: ChatSidebarProps) {
   const router = useRouter();
   const { openSettingsDialog } = useUIStore();
-
-  // Chat data store
-  const {
-    organizedChats,
-    folders,
-    searchQuery,
-    expandedFolders,
-    isLoading,
-    showCreateFolder,
-    newFolderName,
-    loadData,
-    setSearchQuery,
-    performSearch,
-    toggleFolder,
-    createFolder,
-    setShowCreateFolder,
-    setNewFolderName,
-    resetCreateFolderForm,
-  } = useChatDataStore();
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    initializeChatData();
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const fetchChats = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch("/api/chat");
+        if (response.ok) {
+          const data = await response.json();
+          setChats(data.chats);
+        }
+      } catch (error) {
+        console.error("Error fetching chats:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchChats();
   }, []);
-
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    if (query.trim()) {
-      performSearch(query);
-    }
-  };
-
-  const handleCreateFolder = async () => {
-    const success = await createFolder(newFolderName);
-    if (!success) {
-      console.error("Failed to create folder");
-    }
-  };
 
   const handleNewChat = async () => {
     const newChat = await createNewChat();
     router.push(`/chat/${newChat.id}`);
   };
 
+  const filteredChats = chats.filter((chat) =>
+    chat.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   const renderChatItem = (chat: any) => (
     <Link href={`/chat/${chat.id}`} key={chat.id} passHref>
       <div
-        className={`p-3 rounded-lg cursor-pointer transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 ${
+        className={cn(
+          "p-3 rounded-lg cursor-pointer transition-colors hover:bg-gray-100 dark:hover:bg-gray-800",
           selectedChatId === chat.id
             ? "bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500"
             : ""
-        }`}
+        )}
       >
         <div className="flex items-center justify-between">
           <div className="flex-1 min-w-0">
@@ -93,13 +68,6 @@ export function ChatSidebar({ selectedChatId, className }: ChatSidebarProps) {
                 ? new Date(chat.lastMessageAt).toLocaleDateString()
                 : "No messages"}
             </p>
-          </div>
-          <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {chat.isPinned && <Pin className="w-4 h-4 text-blue-500" />}
-            {chat.isArchived && <Archive className="w-4 h-4 text-gray-500" />}
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-              <MoreHorizontal className="w-3 h-3" />
-            </Button>
           </div>
         </div>
       </div>
@@ -144,9 +112,6 @@ export function ChatSidebar({ selectedChatId, className }: ChatSidebarProps) {
             <Button onClick={handleNewChat} size="sm" className="h-8 w-8 p-0">
               <Plus className="w-4 h-4" />
             </Button>
-            {/* <Button onClick={openSettingsDialog} size="sm" variant="ghost" className="h-8 w-8 p-0">
-              <Settings className="w-4 h-4" />
-            </Button> */}
           </div>
         </div>
 
@@ -156,133 +121,18 @@ export function ChatSidebar({ selectedChatId, className }: ChatSidebarProps) {
           <Input
             placeholder="Search chats..."
             value={searchQuery}
-            onChange={(e) => handleSearch(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
           />
         </div>
       </div>
 
       {/* Chat List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* Pinned Chats */}
-        {organizedChats?.pinned && organizedChats.pinned.length > 0 && (
-          <div>
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2 flex items-center">
-              <Pin className="w-4 h-4 mr-2" />
-              Pinned
-            </h3>
-            <div className="space-y-1">
-              {organizedChats.pinned.map(renderChatItem)}
-            </div>
-          </div>
-        )}
-
-        {/* Folders Section */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
-              Folders
-            </h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 w-6 p-0"
-              onClick={() => setShowCreateFolder(true)}
-            >
-              <FolderPlus className="w-4 h-4" />
-            </Button>
-          </div>
-
-          {/* Create Folder Form */}
-          {showCreateFolder && (
-            <div className="mb-3 p-2 border rounded-lg bg-gray-50 dark:bg-gray-800">
-              <div className="flex space-x-2">
-                <Input
-                  placeholder="Folder name"
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && handleCreateFolder()}
-                  className="text-sm"
-                  autoFocus
-                />
-                <Button
-                  size="sm"
-                  onClick={handleCreateFolder}
-                  disabled={!newFolderName.trim()}
-                >
-                  Add
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={resetCreateFolderForm}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Folder List */}
-          {folders.map((folder) => {
-            const folderChats = organizedChats?.folders[folder.id] || [];
-            const isExpanded = expandedFolders.has(folder.id);
-
-            return (
-              <div key={folder.id}>
-                <div
-                  className="flex items-center justify-between p-2 rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
-                  onClick={() => toggleFolder(folder.id)}
-                >
-                  <div className="flex items-center">
-                    <Folder
-                      className="w-4 h-4 mr-2"
-                      style={{ color: folder.color || "#6366f1" }}
-                    />
-                    <span className="text-sm font-medium">{folder.name}</span>
-                    <span className="text-xs text-gray-500 ml-2">
-                      ({folderChats.length})
-                    </span>
-                  </div>
-                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                    <MoreHorizontal className="w-3 h-3" />
-                  </Button>
-                </div>
-
-                {isExpanded && folderChats.length > 0 && (
-                  <div className="ml-6 space-y-1 mt-1">
-                    {folderChats.map(renderChatItem)}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Uncategorized Chats */}
-        {organizedChats?.uncategorized &&
-          organizedChats.uncategorized.length > 0 && (
-            <div>
-              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                Recent
-              </h3>
-              <div className="space-y-1">
-                {organizedChats.uncategorized.map(renderChatItem)}
-              </div>
-            </div>
-          )}
-
-        {/* Archived Chats */}
-        {organizedChats?.archived && organizedChats.archived.length > 0 && (
-          <div>
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2 flex items-center">
-              <Archive className="w-4 h-4 mr-2" />
-              Archived ({organizedChats.archived.length})
-            </h3>
-            <div className="space-y-1">
-              {organizedChats.archived.map(renderChatItem)}
-            </div>
-          </div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        {filteredChats.length > 0 ? (
+          filteredChats.map(renderChatItem)
+        ) : (
+          <p className="text-sm text-gray-500 text-center">No chats found.</p>
         )}
       </div>
     </div>

@@ -69,6 +69,8 @@ src/
 │       └── files/           # File upload/management endpoints
 ├── (future directories)
 │   └── components/chat/     # Chat-specific components
+└── stores
+    └── ui-store.ts             # Zustand store for UI state (dialogs, etc.)
 ```
 
 ### Key Features (Planned)

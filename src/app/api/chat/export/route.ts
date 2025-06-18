@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth-server';
-import { getChatWithMessages, getChatWithDetails } from '@/lib/db/queries';
+import { getChatWithMessages } from '@/lib/db/queries';
 
 const exportSchema = z.object({
   chatId: z.string().uuid(),
@@ -25,9 +25,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Chat not found' }, { status: 404 });
     }
 
-    // Get additional chat details
-    const chatDetails = await getChatWithDetails(chatId, user.id);
-
     let content: string;
     let filename: string;
     let contentType: string;
@@ -35,7 +32,7 @@ export async function POST(request: NextRequest) {
     switch (format) {
       case 'json':
         content = JSON.stringify({
-          chat: chatDetails,
+          chat: chatData,
           messages: chatData.messages,
           exportedAt: new Date().toISOString(),
           exportedBy: user.id,
@@ -45,7 +42,7 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'markdown':
-        content = generateMarkdownExport(chatDetails!, chatData.messages);
+        content = chatToMarkdown(chatData);
         filename = `chat-${chatId}-${Date.now()}.md`;
         contentType = 'text/markdown';
         break;
@@ -77,52 +74,16 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function generateMarkdownExport(chat: any, messages: any[]): string {
-  const lines = [
-    `# ${chat.title}`,
-    '',
-    `**Created:** ${new Date(chat.createdAt).toLocaleString()}`,
-    `**Last Updated:** ${new Date(chat.updatedAt).toLocaleString()}`,
-    `**Messages:** ${messages.length}`,
-    '',
-  ];
+function chatToMarkdown(chat: any) {
+  const { title, messages } = chat;
+  const lines = [`# ${title}\n`];
 
-  if (chat.folder) {
-    lines.push(`**Folder:** ${chat.folder.name}`);
-  }
-
-  if (chat.tags && chat.tags.length > 0) {
-    lines.push(`**Tags:** ${chat.tags.map((tag: any) => tag.name).join(', ')}`);
-  }
-
-  lines.push('', '---', '');
-
-  for (const message of messages) {
-    const timestamp = new Date(message.createdAt).toLocaleString();
-    const role = message.role.charAt(0).toUpperCase() + message.role.slice(1);
-    
-    lines.push(`## ${role} - ${timestamp}`);
-    lines.push('');
-    
-    if (message.content) {
-      lines.push(message.content);
-    }
-    
-    // Add tool invocations if present
-    if (message.toolInvocations && Array.isArray(message.toolInvocations) && message.toolInvocations.length > 0) {
-      lines.push('');
-      lines.push('**Tool Calls:**');
-      for (const tool of message.toolInvocations) {
-        lines.push(`- ${tool.toolName}: ${JSON.stringify(tool.args, null, 2)}`);
-      }
-    }
-    
-    lines.push('');
-    lines.push('---');
-    lines.push('');
-  }
-
-  lines.push(`*Exported on ${new Date().toLocaleString()}*`);
+  // Process messages
+  messages.forEach((message: any) => {
+    lines.push(`\n### ${message.role === 'user' ? 'User' : 'Assistant'}`);
+    lines.push(`${new Date(message.createdAt).toLocaleString()}`);
+    lines.push(`\n${message.content}`);
+  });
 
   return lines.join('\n');
 }

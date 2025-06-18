@@ -7,9 +7,6 @@ import {
   customTools,
   usageMetrics,
   sessions,
-  chatFolders,
-  chatTags,
-  chatTagRelations,
   chatShares,
   userPreferences,
   userApiKeys,
@@ -38,15 +35,6 @@ export type NewCustomTool = InferInsertModel<typeof customTools>;
 
 export type UsageMetric = InferSelectModel<typeof usageMetrics>;
 export type NewUsageMetric = InferInsertModel<typeof usageMetrics>;
-
-export type ChatFolder = InferSelectModel<typeof chatFolders>;
-export type NewChatFolder = InferInsertModel<typeof chatFolders>;
-
-export type ChatTag = InferSelectModel<typeof chatTags>;
-export type NewChatTag = InferInsertModel<typeof chatTags>;
-
-export type ChatTagRelation = InferSelectModel<typeof chatTagRelations>;
-export type NewChatTagRelation = InferInsertModel<typeof chatTagRelations>;
 
 export type ChatShare = InferSelectModel<typeof chatShares>;
 export type NewChatShare = Omit<InferInsertModel<typeof chatShares>, 'shareToken'> & { shareToken?: string };
@@ -115,18 +103,6 @@ export type ChatWithMessages = Chat & {
 
 export type ChatWithUser = Chat & {
   user: User;
-};
-
-export type ChatWithDetails = Chat & {
-  folder?: ChatFolder | null;
-  tags: ChatTag[];
-};
-
-export type OrganizedChats = {
-  pinned: ChatWithDetails[];
-  folders: Record<string, ChatWithDetails[]>;
-  uncategorized: ChatWithDetails[];
-  archived: ChatWithDetails[];
 };
 
 // Message with related data

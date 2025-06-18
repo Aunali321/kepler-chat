@@ -14,50 +14,9 @@ interface ResponsiveLayoutProps {
 }
 
 export function ResponsiveLayout({ sidebar, children }: ResponsiveLayoutProps) {
-  const {
-    isMobile,
-    sidebarOpen,
-    setSidebarOpen,
-    setIsMobile,
-    initialize: initializeUI,
-    initializeFromPreferences: initializeUIFromPrefs,
-  } = useUIStore();
-
-  const { loadPreferences, preferences } = usePreferencesStore();
-  const { initializeSettings } = useSettingsStore();
-  const { initializeFromPreferences: initializeChat } = useChatStore();
-
-  // Load preferences once on mount
-  useEffect(() => {
-    loadPreferences();
-  }, [loadPreferences]);
-
-  // Once preferences are loaded, initialize other stores
-  useEffect(() => {
-    if (preferences) {
-      initializeSettings();
-      initializeChat();
-      initializeUIFromPrefs();
-    }
-  }, [preferences, initializeSettings, initializeChat, initializeUIFromPrefs]);
-
-  useEffect(() => {
-    initializeUI();
-
-    const checkMobile = () => {
-      const mobile = window.innerWidth < 768;
-      setIsMobile(mobile);
-
-      // Close mobile sidebar when switching to desktop
-      if (!mobile && sidebarOpen && isMobile) {
-        setSidebarOpen(false);
-      }
-    };
-
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, [initializeUI, setIsMobile, setSidebarOpen, sidebarOpen, isMobile]);
+  const { showSidebar: sidebarOpen, toggleSidebar: setSidebarOpen } =
+    useUIStore();
+  const isMobile = false; // This will be handled by a different mechanism
 
   return (
     <div className="h-screen flex bg-gray-50 dark:bg-gray-900">
@@ -65,7 +24,7 @@ export function ResponsiveLayout({ sidebar, children }: ResponsiveLayoutProps) {
       {isMobile && sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40"
-          onClick={() => setSidebarOpen(false)}
+          onClick={() => setSidebarOpen()}
         />
       )}
 
@@ -93,7 +52,7 @@ export function ResponsiveLayout({ sidebar, children }: ResponsiveLayoutProps) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setSidebarOpen(true)}
+              onClick={() => setSidebarOpen()}
               className="lg:hidden"
             >
               <Menu className="w-5 h-5" />

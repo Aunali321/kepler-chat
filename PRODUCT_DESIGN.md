@@ -27,7 +27,7 @@ This platform will implement the full range of features supported by the Vercel 
 - **Multi-User Authentication**: Secure user accounts and session management via **BetterAuth**, with chat histories tied to individual users.
 - **Persistent Chat History**: All conversations are saved to a PostgreSQL database, synchronized across user devices.
 - **Real-time Collaboration**: WebSocket integration for shared chats and live collaboration features.
-- **Advanced Chat Management**: Organize chats into folders, search conversations, and export history.
+- **Advanced Chat Management**: Search conversations, and export history.
 - **File Upload & Storage**: Secure file uploads (images, documents) stored in Cloudflare R2 object storage.
 - **Custom Model Configurations**: Allow users to configure model parameters, add custom models, and manage provider preferences through an intuitive settings interface.
 - **Usage Analytics**: Track token usage and cost estimates per user and chat.
@@ -123,14 +123,12 @@ CREATE TABLE sessions (
 
 -- Chat Management
 CREATE TABLE chats (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY,
+  user_id VARCHAR(255) NOT NULL, -- REFERENCES users(id)
   title VARCHAR(255) NOT NULL,
-  folder_id UUID, -- REFERENCES folders(id) if implementing folders
-  model_config JSONB DEFAULT '{}',
-  is_shared BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  model_config JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Advanced Message Structure
