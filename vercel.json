@@ -7,7 +7,7 @@
       "maxDuration": 30
     }
   },
-  "regions": ["iad1", "sfo1"],
+  "regions": ["sfo1"],
   "build": {
     "env": {
       "NEXT_PUBLIC_BETTER_AUTH_URL": "@next-public-better-auth-url"
@@ -17,11 +17,15 @@
     "DATABASE_URL": "@database-url",
     "BETTER_AUTH_SECRET": "@better-auth-secret",
     "BETTER_AUTH_URL": "@better-auth-url",
-    "R2_ENDPOINT": "@r2-endpoint",
+    "R2_ACCOUNT_ID": "@r2-account-id",
     "R2_ACCESS_KEY_ID": "@r2-access-key-id",
     "R2_SECRET_ACCESS_KEY": "@r2-secret-access-key",
     "R2_BUCKET_NAME": "@r2-bucket-name",
-    "R2_PUBLIC_URL": "@r2-public-url"
+    "R2_PUBLIC_URL": "@r2-public-url",
+    "R2_ENDPOINT": "@r2-endpoint",
+    "GOOGLE_CLIENT_ID": "@google-client-id",
+    "GOOGLE_CLIENT_SECRET": "@google-client-secret",
+    "EXA_API_KEY": "@exa-api-key"
   },
   "headers": [
     {
