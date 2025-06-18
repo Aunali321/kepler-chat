@@ -21,12 +21,14 @@ import {
 } from "@/lib/stores/chat-data-store";
 import { createNewChat } from "@/app/actions";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { cn } from "@/lib/utils";
 
 interface ChatSidebarProps {
   selectedChatId?: string;
+  className?: string;
 }
 
-export function ChatSidebar({ selectedChatId }: ChatSidebarProps) {
+export function ChatSidebar({ selectedChatId, className }: ChatSidebarProps) {
   const router = useRouter();
   const { openSettingsDialog } = useUIStore();
 
@@ -107,8 +109,10 @@ export function ChatSidebar({ selectedChatId }: ChatSidebarProps) {
   if (isLoading) {
     return (
       <div
-        className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 p-4"
-        style={{ width: "var(--sidebar-width)" }}
+        className={cn(
+          "bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 p-4",
+          className
+        )}
       >
         <div className="animate-pulse">
           <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
@@ -127,8 +131,10 @@ export function ChatSidebar({ selectedChatId }: ChatSidebarProps) {
 
   return (
     <div
-      className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col h-full"
-      style={{ width: "var(--sidebar-width)" }}
+      className={cn(
+        "bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col h-full",
+        className
+      )}
     >
       {/* Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-800">

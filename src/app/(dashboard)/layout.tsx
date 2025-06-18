@@ -17,8 +17,11 @@ export default function DashboardLayout({
     <AuthProvider>
       <ProviderCheck>
         <div className="flex h-screen">
-          <ChatSidebar selectedChatId={selectedChatId} />
-          <main className="flex-1 flex flex-col">{children}</main>
+          <ChatSidebar
+            selectedChatId={selectedChatId}
+            className="w-80 flex-shrink-0"
+          />
+          <main className="flex-1 flex flex-col min-w-0">{children}</main>
         </div>
       </ProviderCheck>
     </AuthProvider>
