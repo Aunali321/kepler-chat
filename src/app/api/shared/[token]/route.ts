@@ -19,11 +19,6 @@ export async function GET(
       return NextResponse.json({ error: 'Share not found' }, { status: 404 });
     }
 
-    // Check if share is expired
-    if (share.expiresAt && new Date(share.expiresAt) < new Date()) {
-      return NextResponse.json({ error: 'Share has expired' }, { status: 404 });
-    }
-
     // Get chat data
     const chatData = await getChatWithMessages(share.chatId, share.sharedByUserId);
     if (!chatData) {
@@ -32,23 +27,21 @@ export async function GET(
 
     // Check if user has permission to view
     const canView = share.isPublic || 
-                   (user && (user.id === share.sharedByUserId || user.id === share.sharedWithUserId));
+                   (user && (user.id === share.sharedByUserId));
     
     if (!canView) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
     const isOwner = user?.id === share.sharedByUserId;
-    const canEdit = isOwner || share.permission === 'edit';
-    const canComment = canEdit || share.permission === 'comment';
 
     return NextResponse.json({
       share,
       chat: chatData,
       permissions: {
         canView,
-        canEdit,
-        canComment,
+        canEdit: isOwner,
+        canComment: isOwner,
         isOwner,
       },
     });

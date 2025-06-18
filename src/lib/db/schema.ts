@@ -87,16 +87,12 @@ export const chatShares = pgTable('chat_shares', {
   id: uuid('id').primaryKey().defaultRandom(),
   chatId: uuid('chat_id').notNull().references(() => chats.id, { onDelete: 'cascade' }),
   sharedByUserId: varchar('shared_by_user_id', { length: 255 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
-  sharedWithUserId: varchar('shared_with_user_id', { length: 255 }).references(() => users.id, { onDelete: 'cascade' }),
   shareToken: varchar('share_token', { length: 255 }).unique(), // For public sharing
-  permission: varchar('permission', { length: 20 }).default('read'), // 'read', 'comment', 'edit'
   isPublic: boolean('is_public').default(false),
-  expiresAt: timestamp('expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 }, (table) => ({
   chatIdIdx: index('chat_shares_chat_id_idx').on(table.chatId),
   sharedByUserIdIdx: index('chat_shares_shared_by_user_id_idx').on(table.sharedByUserId),
-  sharedWithUserIdIdx: index('chat_shares_shared_with_user_id_idx').on(table.sharedWithUserId),
   shareTokenIdx: index('chat_shares_share_token_idx').on(table.shareToken),
 }));
 
@@ -291,7 +287,6 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   chatFolders: many(chatFolders),
   chatTags: many(chatTags),
   chatSharesCreated: many(chatShares, { relationName: 'sharedBy' }),
-  chatSharesReceived: many(chatShares, { relationName: 'sharedWith' }),
   preferences: one(userPreferences),
   apiKeys: many(userApiKeys),
   customModels: many(userCustomModels),
@@ -339,12 +334,6 @@ export const chatSharesRelations = relations(chatShares, ({ one }) => ({
   sharedByUser: one(users, {
     fields: [chatShares.sharedByUserId],
     references: [users.id],
-    relationName: 'sharedBy',
-  }),
-  sharedWithUser: one(users, {
-    fields: [chatShares.sharedWithUserId],
-    references: [users.id],
-    relationName: 'sharedWith',
   }),
 }));
 

@@ -78,40 +78,6 @@ export function MessageRenderer({
     return null;
   }
 
-  // Shared view uses simpler layout
-  if (isSharedView) {
-    return (
-      <div className="p-4 border rounded-lg">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium capitalize">{message.role}</span>
-          <span className="text-xs text-gray-500">
-            {/* Handle both AI SDK messages and DB messages */}
-            {message.createdAt && new Date(message.createdAt).toLocaleString()}
-          </span>
-        </div>
-        {message.content && (
-          <div className="text-sm whitespace-pre-wrap">{message.content}</div>
-        )}
-
-        {/* Copy button for shared view */}
-        <div className="flex justify-end mt-2">
-          <button
-            onClick={handleCopy}
-            className="p-1 rounded hover:bg-gray-200 transition-colors opacity-0 group-hover:opacity-100"
-            title="Copy message"
-          >
-            {copied ? (
-              <Check className="w-3 h-3 text-green-500" />
-            ) : (
-              <Copy className="w-3 h-3 text-gray-500" />
-            )}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Regular chat view
   return (
     <div className={cn("flex gap-3 group", isUser && "flex-row-reverse")}>
       {/* Avatar */}
@@ -143,14 +109,16 @@ export function MessageRenderer({
         {/* Actions */}
         <div
           className={cn(
-            "flex items-center gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity",
-            isUser ? "justify-end" : "justify-start"
+            "flex items-center gap-2 mt-1 transition-opacity",
+            isUser ? "justify-end" : "justify-start",
+            isSharedView ? "opacity-100" : "opacity-0 group-hover:opacity-100"
           )}
         >
           <button
             onClick={handleCopy}
             className="p-1 rounded hover:bg-accent/20 transition-colors"
             title="Copy message"
+            disabled={isSharedView && !canEdit}
           >
             {copied ? (
               <Check className="w-3 h-3 text-green-500" />

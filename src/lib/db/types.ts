@@ -49,7 +49,7 @@ export type ChatTagRelation = InferSelectModel<typeof chatTagRelations>;
 export type NewChatTagRelation = InferInsertModel<typeof chatTagRelations>;
 
 export type ChatShare = InferSelectModel<typeof chatShares>;
-export type NewChatShare = InferInsertModel<typeof chatShares>;
+export type NewChatShare = Omit<InferInsertModel<typeof chatShares>, 'shareToken'> & { shareToken?: string };
 
 export type UserPreferences = InferSelectModel<typeof userPreferences>;
 export type NewUserPreferences = InferInsertModel<typeof userPreferences>;

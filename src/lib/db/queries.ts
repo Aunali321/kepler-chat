@@ -339,17 +339,15 @@ export async function searchChats(userId: string, query: string, limit: number =
 }
 
 export async function searchMessages(userId: string, query: string, limit: number = 50) {
-  // Full-text search using PostgreSQL's built-in search capabilities
+  // Simple search for now, will be replaced with full-text or vector search
   return await db
-    .select({
-      message: messages,
-      chat: chats,
-    })
+    .select()
     .from(messages)
-    .innerJoin(chats, eq(messages.chatId, chats.id))
     .where(and(
-      eq(chats.userId, userId),
-      sql`${messages.content} @@ plainto_tsquery('english', ${query})`
+      inArray(messages.chatId, 
+        db.select({ id: chats.id }).from(chats).where(eq(chats.userId, userId))
+      ),
+      ilike(messages.content, `%${query}%`)
     ))
     .orderBy(desc(messages.createdAt))
     .limit(limit);
@@ -380,43 +378,50 @@ export async function getChatShare(shareToken: string) {
     .select()
     .from(chatShares)
     .where(eq(chatShares.shareToken, shareToken));
-  return share;
-}
 
-export async function getChatShares(chatId: string, userId: string) {
-  return await db
+  if (!share) return null;
+
+  const chat = await getSharedChatDetails(share.chatId);
+
+  const [sharedByUser] = await db
     .select()
-    .from(chatShares)
-    .where(and(
-      eq(chatShares.chatId, chatId),
-      eq(chatShares.sharedByUserId, userId)
-    ))
-    .orderBy(desc(chatShares.createdAt));
+    .from(users)
+    .where(eq(users.id, share.sharedByUserId));
+
+  return {
+    ...share,
+    chat,
+    sharedByUser,
+  };
 }
 
-export async function getSharedChats(userId: string) {
-  return await db
-    .select({
-      share: chatShares,
-      chat: chats,
-      sharedBy: users,
-    })
-    .from(chatShares)
-    .innerJoin(chats, eq(chatShares.chatId, chats.id))
-    .innerJoin(users, eq(chatShares.sharedByUserId, users.id))
-    .where(eq(chatShares.sharedWithUserId, userId))
-    .orderBy(desc(chatShares.createdAt));
-}
+export async function getSharedChatDetails(chatId: string) {
+  const [chat] = await db
+    .select()
+    .from(chats)
+    .where(eq(chats.id, chatId));
 
-export async function revokeChatShare(shareId: string, userId: string) {
-  const [share] = await db
-    .delete(chatShares)
-    .where(and(
-      eq(chatShares.id, shareId),
-      eq(chatShares.sharedByUserId, userId)
-    ))
-    .returning();
-  return share;
+  if (!chat) return null;
+
+  const messagesResult = await db
+    .select()
+    .from(messages)
+    .where(eq(messages.chatId, chatId))
+    .orderBy(asc(messages.createdAt));
+
+  // Ensure messages have the correct type for the `ai/react` Message interface
+  const typedMessages = messagesResult.map((m: typeof messages.$inferSelect) => ({
+    ...m,
+    id: m.id,
+    role: m.role as any,
+    content: m.content || '',
+    createdAt: m.createdAt ? new Date(m.createdAt) : undefined,
+  }));
+
+  return {
+    ...chat,
+    messages: typedMessages,
+  };
 }
 
 // ======= USER PREFERENCES QUERIES =======
