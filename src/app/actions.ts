@@ -12,7 +12,7 @@ export async function createNewChat() {
     title: 'New Chat',
     modelConfig: {
       provider: 'google',
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
     },
   });
 
