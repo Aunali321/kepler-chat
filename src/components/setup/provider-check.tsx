@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useProviderStore } from '@/lib/stores/provider-store';
-import { OpenRouterSetup } from './openrouter-setup';
-import { useAuth } from '@/components/auth-provider';
+import { useEffect, useState } from "react";
+import { useProviderStore } from "@/lib/stores/provider-store";
+import { ProviderSetup } from "./provider-setup";
+import { useAuth } from "@/components/auth-provider";
 
 interface ProviderCheckProps {
   children: React.ReactNode;
@@ -11,26 +11,27 @@ interface ProviderCheckProps {
 
 export function ProviderCheck({ children }: ProviderCheckProps) {
   const { user } = useAuth();
-  const { 
-    providers, 
-    isLoading 
-  } = useProviderStore();
-  
-  const [showSetup, setShowSetup] = useState(false);
+  const { providers, isLoading } = useProviderStore();
+
+  // This state will determine if the setup screen should be shown.
+  // It's initialized to null to represent an undecided state.
+  const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // Only check for authenticated users and when not loading
+    // Wait until user and provider data is loaded before making a decision.
     if (user?.id && !isLoading) {
-      // Check if user has any enabled providers
-      const availableProviders = Object.keys(providers).filter(
-        (provider) => providers[provider as keyof typeof providers].isEnabled
+      const hasEnabledProvider = Object.values(providers).some(
+        (p) => p.isEnabled
       );
-      setShowSetup(availableProviders.length === 0);
+      // If we haven't made a decision yet, make one. This prevents re-evaluation.
+      if (needsSetup === null) {
+        setNeedsSetup(!hasEnabledProvider);
+      }
     }
-  }, [user?.id, isLoading, providers]);
+  }, [user?.id, isLoading, providers, needsSetup]);
 
-  // Show loading state while checking providers
-  if (isLoading) {
+  // While we are deciding or loading, show a loading state.
+  if (needsSetup === null || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center space-y-4">
@@ -41,18 +42,22 @@ export function ProviderCheck({ children }: ProviderCheckProps) {
     );
   }
 
-  // Show setup if no providers are configured
-  if (showSetup) {
+  // If setup is needed, show the component.
+  if (needsSetup) {
     return (
-      <OpenRouterSetup
+      <ProviderSetup
         onComplete={() => {
-          setShowSetup(false);
+          // User clicked "Continue to Chat", so we no longer need setup.
+          setNeedsSetup(false);
         }}
-        onSkip={() => setShowSetup(false)}
+        onSkip={() => {
+          // User clicked "Skip", so we no longer need setup.
+          setNeedsSetup(false);
+        }}
       />
     );
   }
 
-  // Show normal content if providers are configured
+  // Otherwise, show the main app content.
   return <>{children}</>;
 }

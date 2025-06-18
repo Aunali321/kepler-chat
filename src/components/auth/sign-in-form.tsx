@@ -6,14 +6,21 @@ import { z } from "zod";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { signIn } from "@/lib/auth-client";
-import { useForm } from "@/lib/stores/form-store";
 
 const signInSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -26,12 +33,8 @@ type SignInFormData = z.infer<typeof signInSchema>;
 export function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // Notification store available for future use
-  // const notify = useNotify();
-
-  // Use our new form store
-  const formStore = useForm('sign-in-form');
-  const { form: formState, handleSubmit, setDirty } = formStore;
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const callbackUrl = searchParams?.get("callbackUrl") || "/dashboard";
 
@@ -44,71 +47,67 @@ export function SignInForm() {
     },
   });
 
-  // Mark form as dirty when values change
-  reactHookForm.watch(() => {
-    if (!formState.isDirty) {
-      setDirty(true);
-    }
-  });
-
   const onSubmit = async (values: SignInFormData) => {
-    const result = await handleSubmit(
-      async () => {
-        const signInResult = await signIn.email({
-          email: values.email,
-          password: values.password,
-          rememberMe: values.rememberMe,
-        });
+    setIsLoading(true);
+    setError(null);
 
-        if (signInResult.error) {
-          throw new Error(signInResult.error.message || "Invalid email or password");
-        }
+    try {
+      const signInResult = await signIn.email({
+        email: values.email,
+        password: values.password,
+        rememberMe: values.rememberMe,
+      });
 
-        return signInResult;
-      },
-      {
-        successMessage: "Successfully signed in! Redirecting...",
-        showNotifications: true,
+      if (signInResult.error) {
+        throw new Error(
+          signInResult.error.message || "Invalid email or password"
+        );
       }
-    );
 
-    if (result) {
       // Redirect to callback URL or dashboard
       router.push(callbackUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
-    const result = await handleSubmit(
-      async () => {
-        const signInResult = await signIn.social({
-          provider: "google",
-          callbackURL: callbackUrl,
-        });
-        
-        if (signInResult.error) {
-          throw new Error(signInResult.error.message || "Google sign-in failed. Please try again.");
-        }
-        
-        return signInResult;
-      },
-      {
-        successMessage: "Successfully signed in with Google! Redirecting...",
-        showNotifications: true,
-      }
-    );
+    console.log("Google sign-in clicked!"); // Debug log
+    setIsLoading(true);
+    setError(null);
 
-    if (result) {
-      router.push(callbackUrl);
+    try {
+      const signInResult = await signIn.social({
+        provider: "google",
+        callbackURL: callbackUrl,
+      });
+
+      if (signInResult.error) {
+        throw new Error(
+          signInResult.error.message ||
+            "Google sign-in failed. Please try again."
+        );
+      }
+
+      // Note: For social sign-in, the redirect happens automatically
+      // No need to manually redirect here as the OAuth flow handles it
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google sign-in failed");
+      setIsLoading(false);
     }
   };
 
   return (
     <Form {...reactHookForm}>
-      <form onSubmit={reactHookForm.handleSubmit(onSubmit)} className="space-y-4">
-        {formState.error && (
+      <form
+        onSubmit={reactHookForm.handleSubmit(onSubmit)}
+        className="space-y-4"
+      >
+        {error && (
           <div className="rounded-md bg-red-50 p-3">
-            <div className="text-sm text-red-700">{formState.error}</div>
+            <div className="text-sm text-red-700">{error}</div>
           </div>
         )}
 
@@ -123,7 +122,7 @@ export function SignInForm() {
                   type="email"
                   placeholder="Enter your email"
                   autoComplete="email"
-                  disabled={formState.isLoading}
+                  disabled={isLoading}
                   {...field}
                 />
               </FormControl>
@@ -144,7 +143,7 @@ export function SignInForm() {
                   fieldId="signin-password"
                   placeholder="Enter your password"
                   autoComplete="current-password"
-                  disabled={formState.isLoading}
+                  disabled={isLoading}
                 />
               </FormControl>
               <FormMessage />
@@ -162,7 +161,7 @@ export function SignInForm() {
                   <Checkbox
                     checked={field.value}
                     onCheckedChange={field.onChange}
-                    disabled={formState.isLoading}
+                    disabled={isLoading}
                   />
                 </FormControl>
                 <div className="space-y-1 leading-none">
@@ -182,8 +181,8 @@ export function SignInForm() {
           </Link>
         </div>
 
-        <Button type="submit" className="w-full" disabled={formState.isLoading}>
-          {formState.isLoading ? (
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Signing in...
@@ -209,7 +208,7 @@ export function SignInForm() {
           variant="outline"
           className="w-full"
           onClick={handleGoogleSignIn}
-          disabled={formState.isLoading}
+          disabled={isLoading}
         >
           <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
             <path

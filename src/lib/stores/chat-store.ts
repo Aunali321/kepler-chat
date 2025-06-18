@@ -70,7 +70,7 @@ export interface ChatState extends ChatSettings {
 
 const defaultChatSettings: ChatSettings = {
   selectedProvider: 'google',
-  selectedModel: 'gemini-1.5-flash',
+  selectedModel: 'gemini-2.5-flash',
   systemPrompt: '',
   enabledTools: [],
   customTools: {},
