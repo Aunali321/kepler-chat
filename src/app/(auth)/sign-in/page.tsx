@@ -1,5 +1,5 @@
 import { AuthLayout } from "@/components/auth/auth-layout";
-import { SignInWrapper } from "@/components/auth/sign-in-wrapper";
+import { GoogleSignInForm } from "@/components/auth/google-sign-in-form";
 
 export default function SignInPage() {
   return (
@@ -7,7 +7,7 @@ export default function SignInPage() {
       title="Welcome back"
       description="Sign in to your Kepler Chat account"
     >
-      <SignInWrapper />
+      <GoogleSignInForm />
     </AuthLayout>
   );
 }

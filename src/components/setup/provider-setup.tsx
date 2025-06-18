@@ -50,21 +50,21 @@ const providerDetails: Record<
   },
   openai: {
     name: "OpenAI",
-    logo: "openai-logo.svg",
+    logo: "logos/openai.svg",
     description: "Access models like GPT-4, GPT-3.5.",
     getApiKeyUrl: "https://platform.openai.com/api-keys",
     placeholder: "sk-...",
   },
   anthropic: {
     name: "Anthropic",
-    logo: "anthropic-logo.svg",
+    logo: "logos/anthropic.svg",
     description: "Access Claude models.",
     getApiKeyUrl: "https://console.anthropic.com/settings/keys",
     placeholder: "sk-ant-...",
   },
   google: {
     name: "Google",
-    logo: "google-logo.svg",
+    logo: "logos/gemini.svg",
     description: "Access Gemini models.",
     getApiKeyUrl: "https://aistudio.google.com/app/api_keys",
     placeholder: "AIzaSy...",
@@ -108,24 +108,14 @@ export function ProviderSetup({ onComplete, onSkip }: ProviderSetupProps) {
     }
 
     setIsSubmitting(provider);
-    console.log(`🔑 Attempting to save ${provider} API key...`);
 
     try {
       await saveApiKey(provider, apiKey.trim());
-      console.log(`✅ ${provider} API key saved successfully`);
-
       await updateProviderSettings(provider, { isEnabled: true });
-      console.log(`✅ ${provider} provider settings updated`);
-
       await loadProviders();
-      console.log(`✅ Providers reloaded`);
 
       // Add to saved providers set
-      setSavedProviders((prev) => {
-        const newSet = new Set([...prev, provider]);
-        console.log(`✅ Updated savedProviders:`, Array.from(newSet));
-        return newSet;
-      });
+      setSavedProviders((prev) => new Set([...prev, provider]));
 
       addNotification({
         type: "success",
@@ -135,7 +125,7 @@ export function ProviderSetup({ onComplete, onSkip }: ProviderSetupProps) {
 
       // Don't call onComplete here - let user add more providers
     } catch (error) {
-      console.error(`❌ Error saving ${provider} API key:`, error);
+      console.error(`Error saving ${provider} API key:`, error);
       setValidationErrors((prev) => ({
         ...prev,
         [provider]:
@@ -148,7 +138,6 @@ export function ProviderSetup({ onComplete, onSkip }: ProviderSetupProps) {
       });
     } finally {
       setIsSubmitting(null);
-      console.log(`🏁 Finished processing ${provider}`);
     }
   };
 
@@ -302,22 +291,6 @@ export function ProviderSetup({ onComplete, onSkip }: ProviderSetupProps) {
           >
             Skip for now
           </Button>
-        </div>
-
-        {/* Debug section - remove this later */}
-        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm">
-          <p>
-            <strong>Debug Info:</strong>
-          </p>
-          <p>Saved providers count: {savedProviders.size}</p>
-          <p>
-            Saved providers: {Array.from(savedProviders).join(", ") || "none"}
-          </p>
-          <p>Currently submitting: {isSubmitting || "none"}</p>
-          <p>
-            Should show Continue button:{" "}
-            {savedProviders.size > 0 ? "YES" : "NO"}
-          </p>
         </div>
 
         <div className="mt-6 p-4 bg-gray-50 border rounded-lg">
