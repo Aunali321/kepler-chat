@@ -1,13 +1,25 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ExternalLink, Key, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
-import { useProviderStore } from '@/lib/stores/provider-store';
-import { useNotificationStore } from '@/lib/stores/notification-store';
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  ExternalLink,
+  Key,
+  Loader2,
+  CheckCircle,
+  AlertCircle,
+} from "lucide-react";
+import { useProviderStore } from "@/lib/stores/provider-store";
+import { useNotificationStore } from "@/lib/stores/notification-store";
 
 interface OpenRouterSetupProps {
   onComplete?: () => void;
@@ -15,18 +27,19 @@ interface OpenRouterSetupProps {
 }
 
 export function OpenRouterSetup({ onComplete, onSkip }: OpenRouterSetupProps) {
-  const [apiKey, setApiKey] = useState('');
+  const [apiKey, setApiKey] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  const { saveApiKey, loadProviders } = useProviderStore();
+  const { saveApiKey, updateProviderSettings, loadProviders } =
+    useProviderStore();
   const { addNotification } = useNotificationStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!apiKey.trim()) {
-      setValidationError('Please enter your OpenRouter API key');
+      setValidationError("Please enter your OpenRouter API key");
       return;
     }
 
@@ -34,26 +47,31 @@ export function OpenRouterSetup({ onComplete, onSkip }: OpenRouterSetupProps) {
     setValidationError(null);
 
     try {
-      await saveApiKey('openrouter', apiKey.trim());
-      
+      await saveApiKey("openrouter", apiKey.trim());
+      await updateProviderSettings("openrouter", { isEnabled: true });
+
       // Reload providers to get updated status
       await loadProviders();
-      
+
       addNotification({
-        type: 'success',
-        title: 'OpenRouter Configured!',
-        message: 'Your OpenRouter API key has been saved and validated. You can now start chatting!',
+        type: "success",
+        title: "OpenRouter Configured!",
+        description:
+          "Your OpenRouter API key has been saved and validated. You can now start chatting!",
       });
 
       onComplete?.();
     } catch (error) {
-      console.error('Error saving OpenRouter API key:', error);
-      setValidationError('Failed to validate API key. Please check your key and try again.');
-      
+      console.error("Error saving OpenRouter API key:", error);
+      setValidationError(
+        "Failed to validate API key. Please check your key and try again."
+      );
+
       addNotification({
-        type: 'error',
-        title: 'Setup Failed',
-        message: 'There was an error configuring OpenRouter. Please try again.',
+        type: "error",
+        title: "Setup Failed",
+        description:
+          "There was an error configuring OpenRouter. Please try again.",
       });
     } finally {
       setIsSubmitting(false);
@@ -73,7 +91,8 @@ export function OpenRouterSetup({ onComplete, onSkip }: OpenRouterSetupProps) {
           </div>
           <CardTitle className="text-2xl">Welcome to Kepler Chat!</CardTitle>
           <CardDescription className="text-base">
-            Let's get you started by setting up OpenRouter, which gives you access to multiple AI models from one API.
+            Let's get you started by setting up OpenRouter, which gives you
+            access to multiple AI models from one API.
           </CardDescription>
         </CardHeader>
 
@@ -82,7 +101,9 @@ export function OpenRouterSetup({ onComplete, onSkip }: OpenRouterSetupProps) {
           <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <CheckCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
             <div className="text-sm text-blue-800">
-              <strong>Why OpenRouter?</strong> Access 100+ AI models including GPT-4, Claude, Gemini, and open-source models all through one API key.
+              <strong>Why OpenRouter?</strong> Access 100+ AI models including
+              GPT-4, Claude, Gemini, and open-source models all through one API
+              key.
             </div>
           </div>
 
@@ -100,7 +121,9 @@ export function OpenRouterSetup({ onComplete, onSkip }: OpenRouterSetupProps) {
                 variant="outline"
                 size="sm"
                 className="w-full"
-                onClick={() => window.open('https://openrouter.ai/keys', '_blank')}
+                onClick={() =>
+                  window.open("https://openrouter.ai/keys", "_blank")
+                }
               >
                 <ExternalLink className="w-4 h-4 mr-2" />
                 Get OpenRouter API Key
@@ -118,7 +141,7 @@ export function OpenRouterSetup({ onComplete, onSkip }: OpenRouterSetupProps) {
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   disabled={isSubmitting}
-                  className={validationError ? 'border-red-500' : ''}
+                  className={validationError ? "border-red-500" : ""}
                 />
                 {validationError && (
                   <div className="flex items-center text-red-600 text-sm">
@@ -146,7 +169,7 @@ export function OpenRouterSetup({ onComplete, onSkip }: OpenRouterSetupProps) {
                     </>
                   )}
                 </Button>
-                
+
                 <Button
                   type="button"
                   variant="outline"

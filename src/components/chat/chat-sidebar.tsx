@@ -1,13 +1,26 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { Search, Plus, Folder, Archive, Pin, MoreHorizontal, FolderPlus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useChatDataStore, initializeChatData } from '@/lib/stores/chat-data-store';
-import { createNewChat } from '@/app/actions';
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  Search,
+  Plus,
+  Folder,
+  Archive,
+  Pin,
+  MoreHorizontal,
+  FolderPlus,
+  Settings,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  useChatDataStore,
+  initializeChatData,
+} from "@/lib/stores/chat-data-store";
+import { createNewChat } from "@/app/actions";
+import { useUIStore } from "@/lib/stores/ui-store";
 
 interface ChatSidebarProps {
   selectedChatId?: string;
@@ -15,7 +28,8 @@ interface ChatSidebarProps {
 
 export function ChatSidebar({ selectedChatId }: ChatSidebarProps) {
   const router = useRouter();
-  
+  const { openSettingsDialog } = useUIStore();
+
   // Chat data store
   const {
     organizedChats,
@@ -51,7 +65,7 @@ export function ChatSidebar({ selectedChatId }: ChatSidebarProps) {
   const handleCreateFolder = async () => {
     const success = await createFolder(newFolderName);
     if (!success) {
-      console.error('Failed to create folder');
+      console.error("Failed to create folder");
     }
   };
 
@@ -64,14 +78,18 @@ export function ChatSidebar({ selectedChatId }: ChatSidebarProps) {
     <Link href={`/chat/${chat.id}`} key={chat.id} passHref>
       <div
         className={`p-3 rounded-lg cursor-pointer transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 ${
-          selectedChatId === chat.id ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' : ''
+          selectedChatId === chat.id
+            ? "bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500"
+            : ""
         }`}
       >
         <div className="flex items-center justify-between">
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-medium truncate">{chat.title}</h3>
             <p className="text-xs text-gray-500 mt-1">
-              {chat.lastMessageAt ? new Date(chat.lastMessageAt).toLocaleDateString() : 'No messages'}
+              {chat.lastMessageAt
+                ? new Date(chat.lastMessageAt).toLocaleDateString()
+                : "No messages"}
             </p>
           </div>
           <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -88,12 +106,18 @@ export function ChatSidebar({ selectedChatId }: ChatSidebarProps) {
 
   if (isLoading) {
     return (
-      <div className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 p-4" style={{ width: 'var(--sidebar-width)' }}>
+      <div
+        className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 p-4"
+        style={{ width: "var(--sidebar-width)" }}
+      >
         <div className="animate-pulse">
           <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
           <div className="space-y-3">
             {[...Array(8)].map((_, i) => (
-              <div key={i} className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
+              <div
+                key={i}
+                className="h-16 bg-gray-200 dark:bg-gray-700 rounded"
+              ></div>
             ))}
           </div>
         </div>
@@ -102,16 +126,24 @@ export function ChatSidebar({ selectedChatId }: ChatSidebarProps) {
   }
 
   return (
-    <div className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col h-full" style={{ width: 'var(--sidebar-width)' }}>
+    <div
+      className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col h-full"
+      style={{ width: "var(--sidebar-width)" }}
+    >
       {/* Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-800">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Chats</h2>
-          <Button onClick={handleNewChat} size="sm" className="h-8 w-8 p-0">
-            <Plus className="w-4 h-4" />
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Button onClick={handleNewChat} size="sm" className="h-8 w-8 p-0">
+              <Plus className="w-4 h-4" />
+            </Button>
+            {/* <Button onClick={openSettingsDialog} size="sm" variant="ghost" className="h-8 w-8 p-0">
+              <Settings className="w-4 h-4" />
+            </Button> */}
+          </div>
         </div>
-        
+
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -163,11 +195,15 @@ export function ChatSidebar({ selectedChatId }: ChatSidebarProps) {
                   placeholder="Folder name"
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleCreateFolder()}
+                  onKeyPress={(e) => e.key === "Enter" && handleCreateFolder()}
                   className="text-sm"
                   autoFocus
                 />
-                <Button size="sm" onClick={handleCreateFolder} disabled={!newFolderName.trim()}>
+                <Button
+                  size="sm"
+                  onClick={handleCreateFolder}
+                  disabled={!newFolderName.trim()}
+                >
                   Add
                 </Button>
                 <Button
@@ -185,7 +221,7 @@ export function ChatSidebar({ selectedChatId }: ChatSidebarProps) {
           {folders.map((folder) => {
             const folderChats = organizedChats?.folders[folder.id] || [];
             const isExpanded = expandedFolders.has(folder.id);
-            
+
             return (
               <div key={folder.id}>
                 <div
@@ -193,18 +229,20 @@ export function ChatSidebar({ selectedChatId }: ChatSidebarProps) {
                   onClick={() => toggleFolder(folder.id)}
                 >
                   <div className="flex items-center">
-                    <Folder 
-                      className="w-4 h-4 mr-2" 
-                      style={{ color: folder.color || '#6366f1' }}
+                    <Folder
+                      className="w-4 h-4 mr-2"
+                      style={{ color: folder.color || "#6366f1" }}
                     />
                     <span className="text-sm font-medium">{folder.name}</span>
-                    <span className="text-xs text-gray-500 ml-2">({folderChats.length})</span>
+                    <span className="text-xs text-gray-500 ml-2">
+                      ({folderChats.length})
+                    </span>
                   </div>
                   <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
                     <MoreHorizontal className="w-3 h-3" />
                   </Button>
                 </div>
-                
+
                 {isExpanded && folderChats.length > 0 && (
                   <div className="ml-6 space-y-1 mt-1">
                     {folderChats.map(renderChatItem)}
@@ -216,16 +254,17 @@ export function ChatSidebar({ selectedChatId }: ChatSidebarProps) {
         </div>
 
         {/* Uncategorized Chats */}
-        {organizedChats?.uncategorized && organizedChats.uncategorized.length > 0 && (
-          <div>
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-              Recent
-            </h3>
-            <div className="space-y-1">
-              {organizedChats.uncategorized.map(renderChatItem)}
+        {organizedChats?.uncategorized &&
+          organizedChats.uncategorized.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                Recent
+              </h3>
+              <div className="space-y-1">
+                {organizedChats.uncategorized.map(renderChatItem)}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* Archived Chats */}
         {organizedChats?.archived && organizedChats.archived.length > 0 && (

@@ -1,22 +1,23 @@
-'use client';
+"use client";
 
-import { useChat } from 'ai/react';
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Search, Download, Share2, Settings } from 'lucide-react';
-import { MessageList } from './message-list';
-import { ChatInput } from './chat-input';
-import { ProviderSelector } from './provider-selector';
-import { ToolSelector } from './tool-selector';
-import { LoadingIndicator } from './loading-indicator';
-import { SearchDialog } from './search-dialog';
-import { ExportDialog } from './export-dialog';
-import { ShareDialog } from './share-dialog';
-import { Button } from '@/components/ui/button';
-import { type ProviderType } from '@/lib/db/types';
-import { defaultTools, type ToolName } from '@/lib/tools';
-import { useChatStore } from '@/lib/stores/chat-store';
-import { useUIStore } from '@/lib/stores/ui-store';
+import { useChat } from "ai/react";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Search, Download, Share2, Settings } from "lucide-react";
+import { MessageList } from "./message-list";
+import { ChatInput } from "./chat-input";
+import { ProviderSelector } from "./provider-selector";
+import { ToolSelector } from "./tool-selector";
+import { LoadingIndicator } from "./loading-indicator";
+import { SearchDialog } from "./search-dialog";
+import { ExportDialog } from "./export-dialog";
+import { ShareDialog } from "./share-dialog";
+import { SettingsDialog } from "@/components/settings/settings-dialog";
+import { Button } from "@/components/ui/button";
+import { type ProviderType } from "@/lib/db/types";
+import { defaultTools, type ToolName } from "@/lib/tools";
+import { useChatStore } from "@/lib/stores/chat-store";
+import { useUIStore } from "@/lib/stores/ui-store";
 
 interface ChatInterfaceProps {
   chatId?: string;
@@ -24,7 +25,11 @@ interface ChatInterfaceProps {
   chatTitle?: string;
 }
 
-export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatInterfaceProps) {
+export function ChatInterface({
+  chatId,
+  initialMessages = [],
+  chatTitle,
+}: ChatInterfaceProps) {
   const router = useRouter();
 
   // Chat store
@@ -39,7 +44,6 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
     setEnabledTools,
     setCurrentChatId,
     setIsGenerating,
-    loadFromPreferences,
   } = useChatStore();
 
   // UI store for dialog states
@@ -47,12 +51,14 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
     searchDialogOpen,
     exportDialogOpen,
     shareDialogOpen,
+    settingsDialogOpen,
     openSearchDialog,
     closeSearchDialog,
     openExportDialog,
     closeExportDialog,
     openShareDialog,
     closeShareDialog,
+    closeSettingsDialog,
   } = useUIStore();
 
   const {
@@ -66,7 +72,7 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
     stop,
     setMessages,
   } = useChat({
-    api: '/api/chat',
+    api: "/api/chat",
     body: {
       chatId,
       provider: selectedProvider,
@@ -76,54 +82,44 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
     },
     initialMessages,
     onError: (error) => {
-      console.error('=== CLIENT-SIDE CHAT ERROR ===');
-      console.error('Error object:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      console.error('Error type:', error.constructor.name);
-      console.error('Full error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
-      console.error('Current provider/model:', { selectedProvider, selectedModel });
+      console.error("=== CLIENT-SIDE CHAT ERROR ===");
+      console.error("Error object:", error);
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+      console.error("Error type:", error.constructor.name);
+      console.error(
+        "Full error details:",
+        JSON.stringify(error, Object.getOwnPropertyNames(error))
+      );
+      console.error("Current provider/model:", {
+        selectedProvider,
+        selectedModel,
+      });
       setIsGenerating(false);
     },
     onFinish: (message, { usage, finishReason }) => {
-      console.log('=== MESSAGE FINISHED SUCCESSFULLY ===');
-      console.log('Message:', message);
-      console.log('Usage:', usage);
-      console.log('Finish reason:', finishReason);
+      console.log("=== MESSAGE FINISHED SUCCESSFULLY ===");
+      console.log("Message:", message);
+      console.log("Usage:", usage);
+      console.log("Finish reason:", finishReason);
       setIsGenerating(false);
     },
     // Add fetch interceptor to debug streaming data
     fetch: async (url, options) => {
-      console.log('=== FETCH REQUEST DEBUG ===');
-      console.log('URL:', url);
-      console.log('Options:', options);
-      
+      console.log("=== FETCH REQUEST DEBUG ===");
+      console.log("URL:", url);
+      console.log("Options:", options);
+
       const response = await fetch(url, options);
-      
-      console.log('=== FETCH RESPONSE DEBUG ===');
-      console.log('Status:', response.status);
-      console.log('Headers:', Object.fromEntries(response.headers.entries()));
-      console.log('Response body stream available:', !!response.body);
-      
+
+      console.log("=== FETCH RESPONSE DEBUG ===");
+      console.log("Status:", response.status);
+      console.log("Headers:", Object.fromEntries(response.headers.entries()));
+      console.log("Response body stream available:", !!response.body);
+
       return response;
     },
   });
-
-  // Load chat preferences on component mount  
-  useEffect(() => {
-    const initializeChatPreferences = async () => {
-      console.log('🔧 Loading chat preferences...');
-      try {
-        // Load chat preferences (settings should already be loaded by StoreProvider)
-        await loadFromPreferences();
-        console.log('✅ Chat preferences loaded');
-      } catch (error) {
-        console.error('❌ Error loading chat preferences:', error);
-      }
-    };
-
-    initializeChatPreferences();
-  }, [loadFromPreferences]);
 
   // Set current chat ID and update generation state
   useEffect(() => {
@@ -133,7 +129,10 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
 
   // Debug current provider/model
   useEffect(() => {
-    console.log('🎛️ Current chat settings:', { selectedProvider, selectedModel });
+    console.log("🎛️ Current chat settings:", {
+      selectedProvider,
+      selectedModel,
+    });
   }, [selectedProvider, selectedModel]);
 
   const handleProviderChange = (provider: ProviderType, model: string) => {
@@ -157,7 +156,7 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
       <div className="border-b p-4 bg-background/95 backdrop-blur">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-semibold">
-            {chatTitle || (chatId ? 'Chat' : 'New Chat')}
+            {chatTitle || (chatId ? "Chat" : "New Chat")}
           </h1>
           <div className="flex items-center gap-3">
             {/* Chat Actions */}
@@ -221,10 +220,7 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
 
       {/* Messages */}
       <div className="flex-1 overflow-hidden">
-        <MessageList
-          messages={messages}
-          isLoading={isLoading}
-        />
+        <MessageList messages={messages} isLoading={isLoading} />
       </div>
 
       {/* Loading indicator */}
@@ -274,17 +270,21 @@ export function ChatInterface({ chatId, initialMessages = [], chatTitle }: ChatI
             isOpen={exportDialogOpen}
             onClose={closeExportDialog}
             chatId={chatId}
-            chatTitle={chatTitle || 'Chat'}
+            chatTitle={chatTitle || ""}
           />
 
           <ShareDialog
             isOpen={shareDialogOpen}
             onClose={closeShareDialog}
             chatId={chatId}
-            chatTitle={chatTitle || 'Chat'}
+            chatTitle={chatTitle || "Chat"}
           />
         </>
       )}
+      <SettingsDialog
+        isOpen={settingsDialogOpen}
+        onClose={closeSettingsDialog}
+      />
     </div>
   );
 }
