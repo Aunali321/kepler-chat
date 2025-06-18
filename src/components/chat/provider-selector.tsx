@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { ChevronDown, Settings } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useProviderStore } from '@/lib/stores/provider-store';
-import { useAuth } from '@/components/auth-provider';
-import type { ProviderType } from '@/lib/db/types';
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { ChevronDown, Settings } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useProviderStore } from "@/lib/stores/provider-store";
+import { useAuth } from "@/components/auth-provider";
+import type { ProviderType } from "@/lib/db/types";
 
 interface ProviderSelectorProps {
   selectedProvider: ProviderType;
@@ -33,9 +33,11 @@ export function ProviderSelector({
 
   const availableProviders = getAvailableProviders();
   const currentProviderConfig = providers[selectedProvider];
-  const currentModel = currentProviderConfig ? 
-    [...currentProviderConfig.availableModels, ...currentProviderConfig.customModels]
-      .find(m => m.id === selectedModel) 
+  const currentModel = currentProviderConfig
+    ? [
+        ...currentProviderConfig.availableModels,
+        ...currentProviderConfig.customModels,
+      ].find((m) => m.id === selectedModel)
     : null;
 
   if (isLoading) {
@@ -65,15 +67,14 @@ export function ProviderSelector({
           <Settings className="w-4 h-4" />
           <div className="text-left">
             <div className="font-medium">{selectedProvider}</div>
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-muted-foreground">
               {currentModel?.displayName}
             </div>
           </div>
         </div>
-        <ChevronDown className={cn(
-          'w-4 h-4 transition-transform',
-          isOpen && 'rotate-180'
-        )} />
+        <ChevronDown
+          className={cn("w-4 h-4 transition-transform", isOpen && "rotate-180")}
+        />
       </Button>
 
       {isOpen && (
@@ -83,20 +84,20 @@ export function ProviderSelector({
             className="fixed inset-0 z-10"
             onClick={() => setIsOpen(false)}
           />
-          
+
           {/* Dropdown */}
-          <div className="absolute top-full left-0 mt-2 w-80 bg-white border rounded-lg shadow-lg z-20 max-h-96 overflow-y-auto">
+          <div className="absolute top-full right-0 mt-2 w-80 bg-card border rounded-lg shadow-lg z-20 max-h-96 overflow-y-auto">
             <div className="p-3 border-b">
               <h3 className="font-medium">Select AI Provider & Model</h3>
             </div>
-            
+
             <div className="p-2">
               {availableProviders.map((providerId) => {
                 const allModels = getAvailableModels(providerId);
-                
+
                 return (
                   <div key={providerId} className="mb-4">
-                    <div className="px-2 py-1 text-sm font-medium text-gray-700 bg-gray-50 rounded">
+                    <div className="px-2 py-1 text-sm font-medium text-secondary-foreground bg-secondary rounded">
                       {providerId.charAt(0).toUpperCase() + providerId.slice(1)}
                     </div>
                     <div className="mt-1 space-y-1">
@@ -108,27 +109,32 @@ export function ProviderSelector({
                             setIsOpen(false);
                           }}
                           className={cn(
-                            'w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 transition-colors',
-                            selectedProvider === providerId && selectedModel === model.id &&
-                            'bg-blue-100 text-blue-700'
+                            "w-full text-left px-3 py-2 rounded-md hover:bg-accent/20 transition-colors",
+                            selectedProvider === providerId &&
+                              selectedModel === model.id &&
+                              "bg-primary/20 text-primary"
                           )}
                         >
-                          <div className="font-medium">
+                          <div className="font-semibold">
                             {model.displayName}
                           </div>
-                          <div className="text-xs text-gray-500 mt-1">
+                          <div className="text-xs text-muted-foreground/80 mt-1">
                             {model.description}
                           </div>
-                          <div className="flex items-center gap-4 text-xs text-gray-400 mt-1">
-                            <span>Max: {model.maxTokens?.toLocaleString() || 'N/A'} tokens</span>
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground/60 mt-1">
                             <span>
-                              ${model.costPer1kInputTokens}/1k in • ${model.costPer1kOutputTokens}/1k out
+                              Max: {model.maxTokens?.toLocaleString() || "N/A"}{" "}
+                              tokens
+                            </span>
+                            <span>
+                              ${model.costPer1kInputTokens}/1k in • $
+                              {model.costPer1kOutputTokens}/1k out
                             </span>
                             {model.supportsVision && (
-                              <span className="text-green-600">Vision</span>
+                              <span className="text-green-500">Vision</span>
                             )}
                             {model.supportsTools && (
-                              <span className="text-blue-600">Tools</span>
+                              <span className="text-primary">Tools</span>
                             )}
                           </div>
                         </button>
@@ -138,8 +144,8 @@ export function ProviderSelector({
                 );
               })}
             </div>
-            
-            <div className="p-3 border-t bg-gray-50 text-xs text-gray-600">
+
+            <div className="p-3 border-t bg-secondary text-xs text-secondary-foreground">
               💡 Configure more providers by adding API keys in your settings
             </div>
           </div>

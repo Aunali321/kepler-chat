@@ -260,9 +260,7 @@ export const exaSearchTool = tool({
       }
 
       const data = await response.json();
-      
-      // The response from chat/completions is different.
-      // We'll assume the main content is in the first choice's message.
+
       const message = data.choices?.[0]?.message?.content || '';
       
       return {

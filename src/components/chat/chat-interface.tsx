@@ -153,7 +153,7 @@ export function ChatInterface({
   return (
     <div className="flex flex-col h-full max-h-screen">
       {/* Header with provider selector */}
-      <div className="border-b p-4 bg-background/95 backdrop-blur">
+      <div className="border-b p-4 bg-background/95 backdrop-blur z-30 relative">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-semibold">
             {chatTitle || (chatId ? "Chat" : "New Chat")}
