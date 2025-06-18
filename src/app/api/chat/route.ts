@@ -107,6 +107,9 @@ export async function POST(req: Request) {
       messages.filter(m => m.experimental_attachments && m.experimental_attachments.length > 0).length
     );
 
+    // Get enabled tools
+    const tools = getAvailableTools(enabledTools.filter(name => isToolAvailable(name)) as ToolName[]);
+
     // 3. Initialize provider manager
     await providerManager.initialize(userId);
 
@@ -255,12 +258,32 @@ export async function POST(req: Request) {
 
     // 8. Add system prompt if provided
     const modelConfigData = chat.modelConfig as any;
-    const systemMessage = systemPrompt || modelConfigData?.systemPrompt;
+    let systemMessage = systemPrompt || modelConfigData?.systemPrompt;
+
+    // Enhance system prompt to encourage tool usage
+    const toolUsageInstruction = `
+You have a set of tools available to help you answer questions. 
+When the user asks for information that you don't know, or for information that requires access to real-time data (like today's date, current events, or web searches), you should use the available tools.
+Do not apologize for not knowing information if a tool is available to find it.
+    `.trim();
+
+    if (tools && Object.keys(tools).length > 0) {
+      if (systemMessage) {
+        systemMessage = `${toolUsageInstruction}\n\n${systemMessage}`;
+      } else {
+        systemMessage = toolUsageInstruction;
+      }
+    }
+
     if (systemMessage) {
-      coreMessages.unshift({
-        role: 'system',
-        content: systemMessage,
-      });
+      console.log('ℹ️  Using system message:', systemMessage);
+      // Add it to the beginning of the messages array if it exists
+      if (!coreMessages.some(m => m.role === 'system')) {
+        coreMessages.unshift({
+          role: 'system',
+          content: systemMessage,
+        });
+      }
     }
 
     // 9. Save user message(s) to database
@@ -281,14 +304,12 @@ export async function POST(req: Request) {
       });
     }
 
-    // 10. Get enabled tools
-    const tools = getAvailableTools(enabledTools.filter(name => isToolAvailable(name)) as ToolName[]);
-
     // 11. Stream AI response
     const result = await streamText({
       model: modelInstance,
       messages: coreMessages,
-      tools,
+      system: systemMessage,
+      tools: Object.keys(tools).length > 0 ? tools : undefined,
       maxSteps: 3, // Enable multi-step reasoning
       
       onFinish: async ({ text, usage, finishReason, toolCalls }) => {

@@ -242,17 +242,15 @@ export const exaSearchTool = tool({
   }),
   execute: async ({ query }) => {
     try {
-      const response = await fetch('https://api.exa.ai/search', {
+      const response = await fetch('https://api.exa.ai/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': process.env.EXA_API_KEY || '',
         },
         body: JSON.stringify({
-          query: query,
-          contents: {
-            text: true,
-          },
+          model: 'exa',
+          messages: [{ role: 'user', content: query }],
         }),
       });
 
@@ -262,10 +260,18 @@ export const exaSearchTool = tool({
       }
 
       const data = await response.json();
+      
+      // The response from chat/completions is different.
+      // We'll assume the main content is in the first choice's message.
+      const message = data.choices?.[0]?.message?.content || '';
+      
       return {
         success: true,
-        results: data.results,
-        summary: `Exa search for "${query}" returned ${data.results.length} results.`,
+        results: [{
+          title: `Exa Chat Response for "${query}"`,
+          snippet: message,
+        }],
+        summary: `Exa chat for "${query}" completed.`,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
