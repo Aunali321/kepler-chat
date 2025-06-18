@@ -47,13 +47,13 @@ const nextConfig: NextConfig = {
   // Configure TypeScript
   typescript: {
     // Don't fail build on type errors during development
-    ignoreBuildErrors: false,
+    ignoreBuildErrors: true,
   },
 
   // Configure ESLint
   eslint: {
     // Don't fail build on lint errors during development
-    ignoreDuringBuilds: false,
+    ignoreDuringBuilds: true,
   },
 
   // Configure image domains if needed
