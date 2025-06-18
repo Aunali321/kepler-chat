@@ -190,7 +190,7 @@ export async function POST(req: Request) {
           if (audioAttachments.length > 0) {
             const supportsAudio = modelConfig.supportsAudio;
             if (!supportsAudio) {
-              throw new Error(`Audio input is not supported by ${provider}/${model}. Only Gemini 2.0 Flash and Gemini 1.5 Pro support direct audio processing.`);
+              throw new Error(`Audio input is not supported by ${provider}/${model}. Only Gemini 2.5 Flash and Gemini 2.5 Pro support direct audio processing.`);
             }
           }
 

@@ -11,7 +11,7 @@ export async function createNewChat() {
     userId: user.id,
     title: 'New Chat',
     modelConfig: {
-      provider: 'google',
+      provider: 'openrouter',
       model: 'gemini-2.5-flash',
     },
   });
