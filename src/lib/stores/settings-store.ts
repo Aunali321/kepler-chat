@@ -58,7 +58,7 @@ export interface SettingsState {
 }
 
 const defaultPreferences = {
-  theme: 'system',
+  theme: 'dark',
   language: 'en',
   chatSettings: {
     autoSave: true,
@@ -198,14 +198,8 @@ export const useSettingsStore = create<SettingsState>()(
 
       // Apply theme to document
       applyTheme: () => {
-        const theme = get().theme;
-        if (theme && typeof document !== 'undefined') {
-          if (theme === 'system') {
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-          } else {
-            document.documentElement.setAttribute('data-theme', theme);
-          }
+        if (typeof document !== 'undefined') {
+          document.documentElement.classList.add('dark');
         }
       },
     })),
