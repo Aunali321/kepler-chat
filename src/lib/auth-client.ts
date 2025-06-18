@@ -4,8 +4,8 @@ import { createAuthClient } from "better-auth/react";
 import type { auth } from "./auth";
 
 export const authClient = createAuthClient({
-  baseURL: process.env.NODE_ENV === "production" 
-    ? process.env.NEXT_PUBLIC_BETTER_AUTH_URL || "https://your-domain.com"
+  baseURL: process.env.NODE_ENV === "production"
+    ? process.env.NEXT_PUBLIC_BETTER_AUTH_URL || "https://chat.kepler.systems"
     : "http://localhost:3000",
 });
 

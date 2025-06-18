@@ -66,6 +66,6 @@ export const auth = betterAuth({
   },
   // Trusted origins for CORS
   trustedOrigins: process.env.NODE_ENV === "production"
-    ? [process.env.BETTER_AUTH_URL || "https://your-domain.com"]
+    ? [process.env.BETTER_AUTH_URL || "https://chat.kepler.systems"]
     : ["http://localhost:3000"],
 });

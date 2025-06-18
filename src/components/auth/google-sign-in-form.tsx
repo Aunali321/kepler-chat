@@ -22,7 +22,7 @@ export function GoogleSignInForm() {
     try {
       await signIn.social({
         provider: "google",
-        callbackURL: "/chat",
+        callbackURL: "/dashboard",
       });
     } catch (error) {
       console.error("Google sign-in failed:", error);
