@@ -34,6 +34,7 @@ export function GoogleSignInForm() {
   // Check for Google configuration - this is more permissive to handle different setups
   const googleLoginEnabled = !!(
     process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
+    process.env.GOOGLE_CLIENT_ID ||
     // In development, assume Google is configured if we're not explicitly showing it as disabled
     process.env.NODE_ENV === "development"
   );
