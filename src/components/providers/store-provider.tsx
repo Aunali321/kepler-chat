@@ -45,7 +45,9 @@ export function StoreProvider({ children }: StoreProviderProps) {
     };
     
     initializeApp();
-  }, [initializeUI, loadSettings, loadUISettings, loadProviders]);
+    // Run only once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <ThemeProvider>

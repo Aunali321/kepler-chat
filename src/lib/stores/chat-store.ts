@@ -3,6 +3,8 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import type { ToolName } from '@/lib/tools';
 import type { ProviderType } from '@/lib/db/types';
+import { usePreferencesStore } from './preferences-store';
+import type { ChatSettings as UserChatSettings } from './settings-store';
 
 export interface ChatSettings {
   // Provider and model selection
@@ -63,7 +65,7 @@ export interface ChatState extends ChatSettings {
 
   // Reset actions
   resetToDefaults: () => void;
-  loadFromPreferences: () => void;
+  initializeFromPreferences: () => void;
 }
 
 const defaultChatSettings: ChatSettings = {
@@ -233,26 +235,18 @@ export const useChatStore = create<ChatState>()(
         });
       },
 
-      loadFromPreferences: async () => {
-        try {
-          const response = await fetch('/api/user/preferences');
-          if (response.ok) {
-            const data = await response.json();
-            const preferences = data.preferences;
-
-            set((state) => {
-              // Load chat settings from preferences (but not provider/model)
-              const chatSettings = preferences.chatSettings || {};
-              if (typeof chatSettings.streamingResponses === 'boolean') {
-                state.streamingEnabled = chatSettings.streamingResponses;
-              }
-              if (typeof chatSettings.showTokenCount === 'boolean') {
-                state.showTokenCount = chatSettings.showTokenCount;
-              }
-            });
-          }
-        } catch (error) {
-          console.error('Failed to load preferences for chat store:', error);
+      initializeFromPreferences: () => {
+        const { preferences } = usePreferencesStore.getState();
+        if (preferences?.chatSettings) {
+          const chatSettings = preferences.chatSettings as UserChatSettings;
+          set((state) => {
+            if (typeof chatSettings.streamingResponses === 'boolean') {
+              state.streamingEnabled = chatSettings.streamingResponses;
+            }
+            if (typeof chatSettings.showTokenCount === 'boolean') {
+              state.showTokenCount = chatSettings.showTokenCount;
+            }
+          });
         }
       },
     })),
@@ -268,4 +262,4 @@ export const useChatStore = create<ChatState>()(
   )
 );
 
-// Note: loadFromPreferences will be called manually when needed to avoid excessive API calls
+// Note: initializeFromPreferences will be called manually when needed to avoid excessive API calls

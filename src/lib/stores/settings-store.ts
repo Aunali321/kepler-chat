@@ -2,22 +2,43 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import type { UserPreferences } from '@/lib/db/types';
+import { usePreferencesStore } from './preferences-store';
+
+export interface ChatSettings {
+  autoSave: boolean;
+  streamingResponses: boolean;
+  showTokenCount: boolean;
+}
+
+export interface UISettings {
+  fontSize: 'small' | 'medium' | 'large';
+  sidebarWidth: 'small' | 'normal' | 'large';
+  timezone: string;
+}
+
+export interface NotificationSettings {
+  chatNotifications: boolean;
+  shareNotifications: boolean;
+  emailNotifications: boolean;
+}
+
+export interface ProviderSettings {
+  autoValidateApiKeys: boolean;
+  showProviderCosts: boolean;
+  enableModelFallback: boolean;
+  fallbackOrder: string[];
+}
 
 export interface SettingsState {
   // User preferences (matching database structure)
   theme: string | null;
   language: string | null;
-  chatSettings: unknown;
-  uiSettings: unknown;
-  notificationSettings: unknown;
+  chatSettings: ChatSettings;
+  uiSettings: UISettings;
+  notificationSettings: NotificationSettings;
 
   // Provider-related settings
-  providerSettings: {
-    autoValidateApiKeys: boolean;
-    showProviderCosts: boolean;
-    enableModelFallback: boolean;
-    fallbackOrder: string[];
-  };
+  providerSettings: ProviderSettings;
 
   // Loading states
   isLoading: boolean;
@@ -25,13 +46,13 @@ export interface SettingsState {
   hasChanges: boolean;
 
   // Actions
-  loadPreferences: () => Promise<void>;
+  initializeSettings: () => void;
   savePreferences: () => Promise<void>;
   updatePreference: (key: string, value: any) => void;
-  updateChatSetting: (key: string, value: any) => void;
-  updateUISetting: (key: string, value: any) => void;
-  updateNotificationSetting: (key: string, value: any) => void;
-  updateProviderSetting: (key: string, value: any) => void;
+  updateChatSetting: (key: keyof ChatSettings, value: any) => void;
+  updateUISetting: (key: keyof UISettings, value: any) => void;
+  updateNotificationSetting: (key: keyof NotificationSettings, value: any) => void;
+  updateProviderSetting: (key: keyof ProviderSettings, value: any) => void;
   resetChanges: () => void;
   applyTheme: () => void;
 }
@@ -45,8 +66,8 @@ const defaultPreferences = {
     showTokenCount: false,
   },
   uiSettings: {
-    fontSize: 'medium',
-    sidebarWidth: 'normal',
+    fontSize: 'medium' as const,
+    sidebarWidth: 'normal' as const,
     timezone: typeof window !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC',
   },
   notificationSettings: {
@@ -75,42 +96,15 @@ export const useSettingsStore = create<SettingsState>()(
       isSaving: false,
       hasChanges: false,
 
-      // Load preferences from server
-      loadPreferences: async () => {
-        // Prevent duplicate requests
-        if (isLoadingPreferences || hasLoadedPreferences) {
-          return;
-        }
-
-        isLoadingPreferences = true;
-        set((state) => {
-          state.isLoading = true;
-        });
-
-        try {
-          const response = await fetch('/api/user/preferences');
-          if (response.ok) {
-            const data = await response.json();
-            set((state) => {
-              Object.assign(state, data.preferences);
-              state.isLoading = false;
-              state.hasChanges = false;
-            });
-
-            hasLoadedPreferences = true;
-
-            // Apply theme immediately after loading
-            get().applyTheme();
-          } else {
-            throw new Error('Failed to load preferences');
-          }
-        } catch (error) {
-          console.error('Error loading preferences:', error);
+      // Initialize settings from preferences store
+      initializeSettings: () => {
+        const { preferences } = usePreferencesStore.getState();
+        if (preferences) {
           set((state) => {
-            state.isLoading = false;
+            Object.assign(state, preferences);
+            state.hasChanges = false;
           });
-        } finally {
-          isLoadingPreferences = false;
+          get().applyTheme();
         }
       },
 
@@ -124,7 +118,7 @@ export const useSettingsStore = create<SettingsState>()(
         });
 
         try {
-          const { isLoading, isSaving, hasChanges, ...preferences } = state;
+          const { isSaving, hasChanges, ...preferences } = state;
 
           const response = await fetch('/api/user/preferences', {
             method: 'PUT',
@@ -137,6 +131,10 @@ export const useSettingsStore = create<SettingsState>()(
               state.hasChanges = false;
               state.isSaving = false;
             });
+
+            // Re-fetch preferences in the preferences-store to keep it in sync
+            usePreferencesStore.setState({ preferences: null });
+            await usePreferencesStore.getState().loadPreferences();
 
             // Apply theme after saving
             get().applyTheme();
@@ -162,10 +160,7 @@ export const useSettingsStore = create<SettingsState>()(
       // Update chat settings
       updateChatSetting: (key, value) => {
         set((state) => {
-          state.chatSettings = {
-            ...(state.chatSettings as object || {}),
-            [key]: value,
-          };
+          state.chatSettings[key] = value;
           state.hasChanges = true;
         });
       },
@@ -173,10 +168,7 @@ export const useSettingsStore = create<SettingsState>()(
       // Update UI settings
       updateUISetting: (key, value) => {
         set((state) => {
-          state.uiSettings = {
-            ...(state.uiSettings as object || {}),
-            [key]: value,
-          };
+          state.uiSettings[key] = value;
           state.hasChanges = true;
         });
       },
@@ -184,10 +176,7 @@ export const useSettingsStore = create<SettingsState>()(
       // Update notification settings
       updateNotificationSetting: (key, value) => {
         set((state) => {
-          state.notificationSettings = {
-            ...(state.notificationSettings as object || {}),
-            [key]: value,
-          };
+          state.notificationSettings[key] = value;
           state.hasChanges = true;
         });
       },
@@ -195,10 +184,7 @@ export const useSettingsStore = create<SettingsState>()(
       // Update provider settings
       updateProviderSetting: (key, value) => {
         set((state) => {
-          state.providerSettings = {
-            ...(state.providerSettings as object || {}),
-            [key]: value,
-          };
+          state.providerSettings[key] = value;
           state.hasChanges = true;
         });
       },
@@ -228,7 +214,7 @@ export const useSettingsStore = create<SettingsState>()(
       storage: createJSONStorage(() => localStorage),
       // Only persist user preferences, not loading states
       partialize: (state) => {
-        const { isLoading, isSaving, hasChanges, ...preferences } = state;
+        const { isSaving, hasChanges, ...preferences } = state;
         return preferences;
       },
     }

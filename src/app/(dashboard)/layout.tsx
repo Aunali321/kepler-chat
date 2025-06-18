@@ -2,6 +2,7 @@
 
 import { AuthProvider } from "@/components/auth-provider";
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
+import { ProviderCheck } from "@/components/setup/provider-check";
 import { useParams } from "next/navigation";
 
 export default function DashboardLayout({
@@ -14,10 +15,12 @@ export default function DashboardLayout({
 
   return (
     <AuthProvider>
-      <div className="flex h-screen">
-        <ChatSidebar selectedChatId={selectedChatId} />
-        <main className="flex-1 flex flex-col">{children}</main>
-      </div>
+      <ProviderCheck>
+        <div className="flex h-screen">
+          <ChatSidebar selectedChatId={selectedChatId} />
+          <main className="flex-1 flex flex-col">{children}</main>
+        </div>
+      </ProviderCheck>
     </AuthProvider>
   );
 }

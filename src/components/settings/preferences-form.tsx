@@ -37,12 +37,7 @@ export function PreferencesForm() {
     loadProviders,
   } = useProviderStore();
 
-  useEffect(() => {
-    // Load preferences and providers on component mount
-    loadPreferences();
-    loadProviders();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Note: Preferences and providers are loaded by StoreProvider at app level
 
   // Get all available models from enabled providers
   const getAvailableModelsForDropdown = () => {

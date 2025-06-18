@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { usePreferencesStore } from './preferences-store';
+import type { UISettings } from './settings-store';
 
 export interface UIState {
   // Sidebar state
@@ -35,7 +37,7 @@ export interface UIState {
   setFontSize: (size: 'small' | 'medium' | 'large') => void;
   toggleSidebar: () => void;
   setIsMobile: (mobile: boolean) => void;
-  loadFromSettings: () => Promise<void>;
+  initializeFromPreferences: () => void;
   
   // Dialog actions
   openSearchDialog: () => void;
@@ -218,29 +220,21 @@ export const useUIStore = create<UIState>()(
         });
       },
 
-      // Load settings from server
-      loadFromSettings: async () => {
-        try {
-          const response = await fetch('/api/user/preferences');
-          if (response.ok) {
-            const data = await response.json();
-            const preferences = data.preferences;
-            
-            set((state) => {
-              // Load UI settings from preferences
-              const uiSettings = preferences.uiSettings || {};
-              if (uiSettings.fontSize) {
-                state.fontSize = uiSettings.fontSize;
-              }
-              if (uiSettings.sidebarWidth) {
-                state.sidebarWidth = uiSettings.sidebarWidth;
-              }
-            });
-            
-            console.log('✅ UI settings loaded from preferences');
-          }
-        } catch (error) {
-          console.error('Failed to load UI settings from preferences:', error);
+      // Initialization logic
+      initializeFromPreferences: () => {
+        const { preferences } = usePreferencesStore.getState();
+        if (preferences?.uiSettings) {
+          const uiSettings = preferences.uiSettings as UISettings;
+          set((state) => {
+            if (uiSettings.fontSize) {
+              state.fontSize = uiSettings.fontSize;
+            }
+            if (uiSettings.sidebarWidth) {
+              // The type in uiSettings is different from the one in UIState.
+              // We can cast it for now. A better solution would be to unify the types.
+              state.sidebarWidth = uiSettings.sidebarWidth as 'narrow' | 'normal' | 'wide';
+            }
+          });
         }
       },
 

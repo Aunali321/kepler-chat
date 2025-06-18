@@ -29,12 +29,7 @@ export function ProviderSelector({
     getAvailableModels,
   } = useProviderStore();
 
-  useEffect(() => {
-    // Load providers when component mounts
-    if (user?.id) {
-      loadProviders();
-    }
-  }, [loadProviders, user?.id]);
+  // Note: Providers are loaded by StoreProvider at app level
 
   const availableProviders = getAvailableProviders();
   const currentProviderConfig = providers[selectedProvider];
