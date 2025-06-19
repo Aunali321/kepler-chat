@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { ProviderConfig, ProviderType, ModelConfig } from '@/lib/db/types';
+// Import removed - using API calls instead since store runs client-side
 
 export interface ProviderState {
   // Provider configurations
@@ -133,10 +134,10 @@ export const useProviderStore = create<ProviderState>()(
         });
 
         if (response.ok) {
-          // Reload providers to get updated state
           await get().loadProviders();
         } else {
-          throw new Error('Failed to save API key');
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to save API key');
         }
       } catch (error) {
         console.error('Error saving API key:', error);

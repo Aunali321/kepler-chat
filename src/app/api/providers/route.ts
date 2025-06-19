@@ -7,7 +7,7 @@ import {
   createUserProvider,
   updateUserProvider
 } from '@/lib/db/queries';
-import { getProviderConfig } from '@/lib/provider-manager';
+import { getProviderConfig } from '@/lib/provider-config';
 import type { ProviderType, ProviderConfig } from '@/lib/db/types';
 
 // GET /api/providers - Get all provider configurations for the current user
@@ -17,7 +17,7 @@ async function getHandler(req: Request, user: { id: string; email: string; name?
   // Get all supported provider types
   const supportedProviders: ProviderType[] = ['openai', 'anthropic', 'google', 'openrouter'];
   
-  // Build provider configurations using provider manager
+  // Build provider configurations using new functional approach
   const providerConfigs: Record<ProviderType, ProviderConfig> = {} as any;
 
   for (const providerId of supportedProviders) {

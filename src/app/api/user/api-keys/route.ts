@@ -10,6 +10,7 @@ import {
   setProviderValidationStatus
 } from '@/lib/db/queries';
 import { encryptApiKey, decryptApiKey, maskApiKey } from '@/lib/crypto';
+import { validateApiKey } from '@/lib/api-keys';
 import type { ProviderType } from '@/lib/db/types';
 
 // GET /api/user/api-keys - Get all API keys for the current user
@@ -55,6 +56,14 @@ async function postHandler(request: NextRequest, user: { id: string; email: stri
     if (!validProviders.includes(provider)) {
       return NextResponse.json({
         error: 'Invalid provider'
+      }, { status: 400 });
+    }
+
+    // Validate the API key first
+    const validation = await validateApiKey(provider, apiKey);
+    if (!validation.isValid) {
+      return NextResponse.json({
+        error: validation.error || 'Invalid API key'
       }, { status: 400 });
     }
 

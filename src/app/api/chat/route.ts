@@ -2,7 +2,8 @@ import { streamText, convertToCoreMessages, type CoreMessage, type Attachment } 
 import { z } from 'zod';
 import { withAuthUser } from '@/lib/middleware/auth';
 import { withErrorHandling } from '@/lib/middleware/error';
-import { getDefaultModel, getModelInstance, getProviderConfig } from '@/lib/provider-manager';
+import { getDefaultModel, getModelForChat } from '@/lib/providers';
+import { getProviderConfig } from '@/lib/provider-config';
 import { getAvailableTools, defaultTools, isToolAvailable, type ToolName } from '@/lib/tools';
 import { 
   getChatById, 
@@ -82,7 +83,7 @@ async function postHandler(req: Request, user: { id: string; email: string; name
   // Get enabled tools
   const tools = getAvailableTools(enabledTools.filter(name => isToolAvailable(name)) as ToolName[]);
 
-  // 3. Provider manager is now stateless - no initialization needed
+  // 3. Provider system is now stateless - no initialization needed
 
   // 4. Determine model configuration
   let provider: string;
@@ -128,9 +129,9 @@ async function postHandler(req: Request, user: { id: string; email: string; name
   }
 
   // 6. Get model instance and configuration
-  const modelInstance = await getModelInstance(userId, provider as any, model);
+  const modelInstance = await getModelForChat(userId, provider as any, model);
   
-  // Get model configuration from provider manager
+  // Get model configuration from provider config
   const providerConfig = await getProviderConfig(userId, provider as any);
   if (!providerConfig) {
     throw new Error('Provider configuration not found');
