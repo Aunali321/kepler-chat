@@ -11,7 +11,17 @@ import {
 } from './schema';
 
 // BetterAuth manages user, session, account, and verification tables automatically
-// We don't export types for these since BetterAuth provides them
+// We define User type based on what BetterAuth provides
+export interface User {
+  id: string;
+  email: string;
+  name?: string;
+  avatarUrl?: string;
+  emailVerified?: boolean;
+  preferences?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
 
 export type Chat = InferSelectModel<typeof chats>;
 export type NewChat = InferInsertModel<typeof chats>;

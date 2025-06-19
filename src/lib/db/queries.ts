@@ -464,7 +464,9 @@ export async function createUserProvider(data: {
   isEnabled?: boolean,
   defaultModel?: string,
   customModels?: any[],
-  settings?: any
+  settings?: any,
+  validationStatus?: 'valid' | 'invalid' | 'pending',
+  lastValidated?: Date
 }) {
   const [providerConfig] = await db.insert(userProviders).values(data).returning();
   return providerConfig;

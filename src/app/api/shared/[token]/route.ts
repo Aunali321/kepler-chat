@@ -1,56 +1,50 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth-server';
+import { NextRequest } from 'next/server';
+import { withOptionalAuth } from '@/lib/middleware/optional-auth';
+import { withErrorHandling } from '@/lib/middleware/error';
+import { responses } from '@/lib/utils/api-response';
 import { getChatShare, getChatWithMessages } from '@/lib/db/queries';
+import type { User } from '@/lib/db/types';
 
 // Force Node.js runtime to allow database access
 export const runtime = 'nodejs';
 
-export async function GET(
+async function getSharedChatHandler(
   request: NextRequest,
-  { params }: { params: Promise<{ token: string }> }
+  user: User | null,
+  context: any
 ) {
-  try {
-    const { token } = await params;
-    const user = await getCurrentUser();
-    
-    // Get share information
-    const share = await getChatShare(token);
-    if (!share) {
-      return NextResponse.json({ error: 'Share not found' }, { status: 404 });
-    }
-
-    // Get chat data
-    const chatData = await getChatWithMessages(share.chatId, share.sharedByUserId);
-    if (!chatData) {
-      return NextResponse.json({ error: 'Chat not found' }, { status: 404 });
-    }
-
-    // Check if user has permission to view
-    const canView = share.isPublic || 
-                   (user && (user.id === share.sharedByUserId));
-    
-    if (!canView) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-
-    const isOwner = user?.id === share.sharedByUserId;
-
-    return NextResponse.json({
-      share,
-      chat: chatData,
-      permissions: {
-        canView,
-        canEdit: isOwner,
-        canComment: isOwner,
-        isOwner,
-      },
-    });
-
-  } catch (error) {
-    console.error('Get shared chat error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' }, 
-      { status: 500 }
-    );
+  const { token } = await context.params;
+  
+  // Get share information
+  const share = await getChatShare(token);
+  if (!share) {
+    return responses.notFound('Shared chat not found');
   }
-} 
+
+  // Simple sharing: only check if public or owned by user
+  const canView = share.isPublic || (user && user.id === share.sharedByUserId);
+  
+  if (!canView) {
+    return responses.forbidden('This chat is private');
+  }
+
+  // Get chat data
+  const chatData = await getChatWithMessages(share.chatId, share.sharedByUserId);
+  if (!chatData) {
+    return responses.notFound('Chat content not found');
+  }
+
+  const isOwner = user?.id === share.sharedByUserId;
+
+  return responses.ok({
+    chat: chatData,
+    messages: chatData.messages,
+    isPublic: share.isPublic,
+    isOwner,
+    sharedBy: share.sharedByUserId,
+  });
+}
+
+export const GET = withErrorHandling(
+  withOptionalAuth(getSharedChatHandler)
+);

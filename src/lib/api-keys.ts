@@ -9,12 +9,40 @@ import type { ProviderType } from '@/lib/db/types';
 export async function getApiKey(userId: string, provider: ProviderType): Promise<string> {
   const providerConfig = await getUserProvider(userId, provider);
   
+  // DEBUG: Log detailed information about API key retrieval attempts
+  console.log(`=== getApiKey DEBUG ===`);
+  console.log(`User ID: ${userId}`);
+  console.log(`Provider: ${provider}`);
+  console.log(`Provider config found: ${!!providerConfig}`);
+  
+  if (providerConfig) {
+    console.log(`Validation status: ${providerConfig.validationStatus}`);
+    console.log(`Is enabled: ${providerConfig.isEnabled}`);
+    console.log(`Has encrypted key: ${!!providerConfig.encryptedApiKey}`);
+    console.log(`Last validated: ${providerConfig.lastValidated}`);
+    console.log(`Created at: ${providerConfig.createdAt}`);
+    console.log(`Updated at: ${providerConfig.updatedAt}`);
+  }
+  
   if (!providerConfig || 
       providerConfig.validationStatus !== 'valid' || 
       !providerConfig.encryptedApiKey) {
-    throw new Error(`No valid API key for provider ${provider}`);
+    
+    const reason = !providerConfig 
+      ? 'Provider config not found'
+      : providerConfig.validationStatus !== 'valid'
+      ? `Invalid validation status: ${providerConfig.validationStatus}`
+      : 'No encrypted API key found';
+    
+    console.log(`API key retrieval failed: ${reason}`);
+    console.log(`=== END getApiKey DEBUG ===`);
+    
+    throw new Error(`No valid API key for provider ${provider}: ${reason}`);
   }
 
+  console.log(`API key retrieval successful`);
+  console.log(`=== END getApiKey DEBUG ===`);
+  
   return decryptApiKey(providerConfig.encryptedApiKey);
 }
 

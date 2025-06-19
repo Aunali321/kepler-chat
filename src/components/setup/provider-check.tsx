@@ -11,11 +11,18 @@ interface ProviderCheckProps {
 
 export function ProviderCheck({ children }: ProviderCheckProps) {
   const { user } = useAuth();
-  const { providers, isLoading } = useProviderStore();
+  const { providers, isLoading, loadProviders } = useProviderStore();
 
   // This state will determine if the setup screen should be shown.
   // It's initialized to null to represent an undecided state.
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
+
+  // Load providers when user is authenticated
+  useEffect(() => {
+    if (user?.id) {
+      loadProviders();
+    }
+  }, [user?.id, loadProviders]);
 
   useEffect(() => {
     // Wait until user and provider data is loaded before making a decision.
@@ -23,12 +30,12 @@ export function ProviderCheck({ children }: ProviderCheckProps) {
       const hasEnabledProvider = Object.values(providers).some(
         (p) => p.isEnabled
       );
-      // If we haven't made a decision yet, make one. This prevents re-evaluation.
-      if (needsSetup === null) {
-        setNeedsSetup(!hasEnabledProvider);
-      }
+      
+      // Always update needsSetup based on current provider state
+      // This ensures onboarding disappears when providers are enabled
+      setNeedsSetup(!hasEnabledProvider);
     }
-  }, [user?.id, isLoading, providers, needsSetup]);
+  }, [user?.id, isLoading, providers]);
 
   // While we are deciding or loading, show a loading state.
   if (needsSetup === null || isLoading) {

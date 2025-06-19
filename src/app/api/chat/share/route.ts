@@ -1,48 +1,52 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
+import { NextRequest } from 'next/server';
 import { nanoid } from 'nanoid';
-import { getCurrentUser } from '@/lib/auth-server';
+import { withErrorHandling } from '@/lib/middleware/error';
+import { authMiddleware } from '@/lib/middleware/composed';
+import { responses } from '@/lib/utils/api-response';
+import { chatShareSchema } from '@/lib/schemas/api';
 import { 
   createChatShare,
   getChatById
 } from '@/lib/db/queries';
-import type { NewChatShare } from '@/lib/db/types';
+import type { User, NewChatShare } from '@/lib/db/types';
 
-const createShareSchema = z.object({
-  chatId: z.string().uuid(),
-});
+async function shareHandler(
+  request: NextRequest,
+  user: User,
+  { body }: { body: { chatId: string; isPublic: boolean } }
+) {
+  const { chatId, isPublic } = body;
 
-export async function POST(request: NextRequest) {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const body = await request.json();
-    const validatedData = createShareSchema.parse(body);
-
-    const chat = await getChatById(validatedData.chatId, user.id);
-    if (!chat) {
-      return NextResponse.json({ error: 'Chat not found or unauthorized' }, { status: 404 });
-    }
-
-    const shareToken = nanoid(32);
-
-    const shareData: NewChatShare = {
-      chatId: validatedData.chatId,
-      sharedByUserId: user.id,
-      shareToken,
-      isPublic: true,
-    };
-
-    const share = await createChatShare(shareData);
-    return NextResponse.json({ share }, { status: 201 });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid input', details: error.errors }, { status: 400 });
-    }
-    console.error('Error creating share:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  // Verify user owns the chat
+  const chat = await getChatById(chatId, user.id);
+  if (!chat) {
+    return responses.notFound('Chat not found');
   }
+
+  // Generate simple share token
+  const shareToken = nanoid(16); // Shorter token for simplicity
+
+  const shareData: NewChatShare = {
+    chatId,
+    sharedByUserId: user.id,
+    shareToken,
+    isPublic,
+    // No expiration for simplified sharing
+  };
+
+  await createChatShare(shareData);
+  
+  // Build share URL
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  const shareUrl = `${baseUrl}/shared/${shareToken}`;
+
+  return responses.created({
+    shareToken,
+    shareUrl,
+    isPublic,
+  });
 }
+
+export const POST = withErrorHandling(
+  authMiddleware.withBody(chatShareSchema)(shareHandler)
+);

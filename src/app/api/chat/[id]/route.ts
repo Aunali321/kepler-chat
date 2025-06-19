@@ -1,60 +1,58 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth-server';
+import { NextRequest } from 'next/server';
+import { withErrorHandling } from '@/lib/middleware/error';
+import { authMiddleware } from '@/lib/middleware/composed';
+import { responses } from '@/lib/utils/api-response';
 import { getChatWithMessages } from '@/lib/db/queries';
+import type { User } from '@/lib/db/types';
 
 // Force Node.js runtime to allow database access
 export const runtime = 'nodejs';
 
-export async function GET(
+async function getChatHandler(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  user: User,
+  context: any
 ) {
-  try {
-    const { user } = await requireAuth();
-    const { id } = await params;
+  const { id } = await context.params;
 
-    const chatWithMessages = await getChatWithMessages(id, user.id);
-    
-    if (!chatWithMessages) {
-      return NextResponse.json({ error: 'Chat not found' }, { status: 404 });
-    }
-
-    // Convert messages to format expected by useChat
-    const initialMessages = chatWithMessages.messages.map(msg => {
-      const metadata = msg.metadata as any;
-      return {
-        id: msg.id,
-        role: msg.role as 'user' | 'assistant' | 'system' | 'tool',
-        content: msg.content || '',
-        toolInvocations: msg.toolInvocations || [],
-        // Include experimental_attachments from metadata if they exist
-        ...(metadata?.experimental_attachments && {
-          experimental_attachments: metadata.experimental_attachments
-        }),
-      };
-    });
-
-    return NextResponse.json({
-      chat: {
-        id: chatWithMessages.id,
-        title: chatWithMessages.title,
-        userId: chatWithMessages.userId,
-        isArchived: chatWithMessages.isArchived,
-        isPinned: chatWithMessages.isPinned,
-        lastMessageAt: chatWithMessages.lastMessageAt,
-        createdAt: chatWithMessages.createdAt,
-        updatedAt: chatWithMessages.updatedAt,
-        isShared: chatWithMessages.isShared,
-        modelConfig: chatWithMessages.modelConfig,
-      },
-      messages: initialMessages
-    });
-
-  } catch (error) {
-    console.error('Get chat error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' }, 
-      { status: 500 }
-    );
+  const chatWithMessages = await getChatWithMessages(id, user.id);
+  
+  if (!chatWithMessages) {
+    return responses.notFound('Chat not found');
   }
-} 
+
+  // Convert messages to format expected by useChat
+  const initialMessages = chatWithMessages.messages.map(msg => {
+    const metadata = msg.metadata as any;
+    return {
+      id: msg.id,
+      role: msg.role as 'user' | 'assistant' | 'system' | 'tool',
+      content: msg.content || '',
+      toolInvocations: msg.toolInvocations || [],
+      // Include experimental_attachments from metadata if they exist
+      ...(metadata?.experimental_attachments && {
+        experimental_attachments: metadata.experimental_attachments
+      }),
+    };
+  });
+
+  return responses.ok({
+    chat: {
+      id: chatWithMessages.id,
+      title: chatWithMessages.title,
+      userId: chatWithMessages.userId,
+      isArchived: chatWithMessages.isArchived,
+      isPinned: chatWithMessages.isPinned,
+      lastMessageAt: chatWithMessages.lastMessageAt,
+      createdAt: chatWithMessages.createdAt,
+      updatedAt: chatWithMessages.updatedAt,
+      isShared: chatWithMessages.isShared,
+      modelConfig: chatWithMessages.modelConfig,
+    },
+    messages: initialMessages
+  });
+}
+
+export const GET = withErrorHandling(
+  authMiddleware.only(getChatHandler)
+);
