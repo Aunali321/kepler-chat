@@ -126,7 +126,7 @@ async function postHandler(
     const defaultModel = await getDefaultModel(userId);
     if (!defaultModel) {
       throw new Error(
-        "No available AI providers. Please configure API keys in settings."
+        "Please select an AI model before sending a message. Click the settings icon in the top-right corner to choose a provider and model."
       );
     }
     provider = defaultModel.providerId;

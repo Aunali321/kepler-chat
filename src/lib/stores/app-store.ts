@@ -1,8 +1,8 @@
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { immer } from 'zustand/middleware/immer';
-import type { ToolName } from '@/lib/tools';
-import type { ProviderType, UserPreferences } from '@/lib/db/types';
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { immer } from "zustand/middleware/immer";
+import type { ToolName } from "@/lib/tools";
+import type { ProviderType, UserPreferences } from "@/lib/db/types";
 
 // Chat Settings
 export interface ChatSettings {
@@ -91,7 +91,10 @@ export interface AppState {
   updatePreference: (key: string, value: any) => void;
   updateChatSetting: (key: string, value: any) => void;
   updateUISetting: (key: string, value: any) => void;
-  updateNotificationSetting: (key: keyof NotificationSettings, value: any) => void;
+  updateNotificationSetting: (
+    key: keyof NotificationSettings,
+    value: any
+  ) => void;
   savePreferences: () => Promise<void>;
   loadPreferences: () => Promise<void>;
   resetChanges: () => void;
@@ -100,12 +103,15 @@ export interface AppState {
   // Utility actions
   resetToDefaults: () => void;
   initializeFromPreferences: (prefs: UserPreferences) => void;
+  initializeFromProviders: (
+    enabledProviders: { provider: ProviderType; config: any }[]
+  ) => void;
 }
 
 const defaultChatSettings: ChatSettings = {
-  selectedProvider: 'google',
-  selectedModel: 'gemini-2.0-flash',
-  systemPrompt: '',
+  selectedProvider: "openai", // Default fallback - will be overridden by first available provider
+  selectedModel: "gpt-4o-mini", // Default fallback - will be overridden by first available model
+  systemPrompt: "",
   enabledTools: [],
   customTools: {},
   temperature: 0.7,
@@ -121,7 +127,7 @@ const defaultUIState: UIState = {
   exportDialogOpen: false,
   shareDialogOpen: false,
   settingsDialogOpen: false,
-  activeSettingsTab: 'profile',
+  activeSettingsTab: "profile",
 };
 
 const defaultNotificationSettings: NotificationSettings = {
@@ -147,8 +153,8 @@ export const useAppStore = create<AppState>()(
       },
 
       preferences: {
-        theme: 'dark',
-        language: 'en',
+        theme: "dark",
+        language: "en",
         notificationSettings: defaultNotificationSettings,
         hasChanges: false,
         isLoading: false,
@@ -161,20 +167,20 @@ export const useAppStore = create<AppState>()(
           state.chat.selectedProvider = provider;
           // Reset model to default for new provider
           switch (provider) {
-            case 'openai':
-              state.chat.selectedModel = 'gpt-4o-mini';
+            case "openai":
+              state.chat.selectedModel = "gpt-4.1";
               break;
-            case 'anthropic':
-              state.chat.selectedModel = 'claude-3-5-sonnet';
+            case "anthropic":
+              state.chat.selectedModel = "claude-sonnet-4-20250514";
               break;
-            case 'google':
-              state.chat.selectedModel = 'gemini-2.0-flash';
+            case "google":
+              state.chat.selectedModel = "gemini-2.5-flash";
               break;
-            case 'openrouter':
-              state.chat.selectedModel = 'claude-3-5-sonnet';
+            case "openrouter":
+              state.chat.selectedModel = "claude-sonnet-4";
               break;
             default:
-              state.chat.selectedModel = 'gemini-2.0-flash';
+              state.chat.selectedModel = "gemini-2.5-flash";
           }
         });
       },
@@ -219,14 +225,18 @@ export const useAppStore = create<AppState>()(
 
       disableTool: (toolId) => {
         set((state) => {
-          state.chat.enabledTools = state.chat.enabledTools.filter(id => id !== toolId);
+          state.chat.enabledTools = state.chat.enabledTools.filter(
+            (id) => id !== toolId
+          );
         });
       },
 
       toggleTool: (toolId) => {
         set((state) => {
           if (state.chat.enabledTools.includes(toolId)) {
-            state.chat.enabledTools = state.chat.enabledTools.filter(id => id !== toolId);
+            state.chat.enabledTools = state.chat.enabledTools.filter(
+              (id) => id !== toolId
+            );
           } else {
             state.chat.enabledTools.push(toolId);
           }
@@ -256,8 +266,6 @@ export const useAppStore = create<AppState>()(
           state.chat.showSystemPrompt = show;
         });
       },
-
-
 
       setCurrentChatId: (chatId) => {
         set((state) => {
@@ -314,7 +322,7 @@ export const useAppStore = create<AppState>()(
         });
       },
 
-      openSettingsDialog: (tab = 'profile') => {
+      openSettingsDialog: (tab = "profile") => {
         set((state) => {
           state.ui.settingsDialogOpen = true;
           state.ui.activeSettingsTab = tab;
@@ -332,8 +340,6 @@ export const useAppStore = create<AppState>()(
           state.ui.activeSettingsTab = tab;
         });
       },
-
-
 
       // Preference actions
       updatePreference: (key, value) => {
@@ -373,13 +379,14 @@ export const useAppStore = create<AppState>()(
         });
 
         try {
-          const { hasChanges, isLoading, isSaving, ...preferences } = state.preferences;
+          const { hasChanges, isLoading, isSaving, ...preferences } =
+            state.preferences;
           const uiSettings = {};
           const chatSettings = {};
 
-          const response = await fetch('/api/user/preferences', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+          const response = await fetch("/api/user/preferences", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               ...preferences,
               uiSettings,
@@ -394,10 +401,10 @@ export const useAppStore = create<AppState>()(
             });
             get().applyTheme();
           } else {
-            throw new Error('Failed to save preferences');
+            throw new Error("Failed to save preferences");
           }
         } catch (error) {
-          console.error('Error saving preferences:', error);
+          console.error("Error saving preferences:", error);
           set((state) => {
             state.preferences.isSaving = false;
           });
@@ -410,13 +417,13 @@ export const useAppStore = create<AppState>()(
         });
 
         try {
-          const response = await fetch('/api/user/preferences');
+          const response = await fetch("/api/user/preferences");
           if (response.ok) {
             const data = await response.json();
             get().initializeFromPreferences(data.preferences);
           }
         } catch (error) {
-          console.error('Error loading preferences:', error);
+          console.error("Error loading preferences:", error);
         } finally {
           set((state) => {
             state.preferences.isLoading = false;
@@ -431,12 +438,12 @@ export const useAppStore = create<AppState>()(
       },
 
       applyTheme: () => {
-        if (typeof document !== 'undefined') {
+        if (typeof document !== "undefined") {
           const { theme } = get().preferences;
-          if (theme === 'dark' || theme === 'system') {
-            document.documentElement.classList.add('dark');
+          if (theme === "dark" || theme === "system") {
+            document.documentElement.classList.add("dark");
           } else {
-            document.documentElement.classList.remove('dark');
+            document.documentElement.classList.remove("dark");
           }
         }
       },
@@ -453,17 +460,21 @@ export const useAppStore = create<AppState>()(
 
       initializeFromPreferences: (prefs) => {
         if (!prefs) return;
-        
+
         set((state) => {
           // Update preferences from consolidated userSettings structure
-          const preferences = prefs.preferences as any || {};
+          const preferences = (prefs.preferences as any) || {};
           if (preferences.theme) state.preferences.theme = preferences.theme;
-          if (preferences.language) state.preferences.language = preferences.language;
-          if (prefs.notificationSettings && typeof prefs.notificationSettings === 'object') {
+          if (preferences.language)
+            state.preferences.language = preferences.language;
+          if (
+            prefs.notificationSettings &&
+            typeof prefs.notificationSettings === "object"
+          ) {
             // Merge with defaults to ensure all required properties exist
             state.preferences.notificationSettings = {
               ...defaultNotificationSettings,
-              ...prefs.notificationSettings
+              ...prefs.notificationSettings,
             };
           }
 
@@ -475,9 +486,38 @@ export const useAppStore = create<AppState>()(
 
         get().applyTheme();
       },
+
+      initializeFromProviders: (enabledProviders) => {
+        if (enabledProviders.length === 0) return;
+
+        // Get current selected provider and check if it's still available
+        const currentProvider = get().chat.selectedProvider;
+        const isCurrentProviderAvailable = enabledProviders.some(
+          (p) => p.provider === currentProvider
+        );
+
+        // If current provider is not available, switch to first available
+        if (!isCurrentProviderAvailable) {
+          const firstProvider = enabledProviders[0];
+          const availableModels = [
+            ...(firstProvider.config.availableModels || []),
+            ...(firstProvider.config.customModels || []),
+          ];
+
+          if (availableModels.length > 0) {
+            console.log(
+              `🔄 Switching from ${currentProvider} to ${firstProvider.provider} with model ${availableModels[0].id}`
+            );
+            set((state) => {
+              state.chat.selectedProvider = firstProvider.provider;
+              state.chat.selectedModel = availableModels[0].id;
+            });
+          }
+        }
+      },
     })),
     {
-      name: 'kepler-app-state',
+      name: "kepler-app-state",
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         chat: {
@@ -505,7 +545,7 @@ export const useAppStore = create<AppState>()(
 );
 
 // Initialize theme on app load
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   const state = useAppStore.getState();
   state.applyTheme();
 }
