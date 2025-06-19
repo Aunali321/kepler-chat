@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireAuthApi } from '@/lib/auth-server';
+import { withAuthUser } from '@/lib/middleware/auth';
+import { withErrorHandling } from '@/lib/middleware/error';
 import { createFile } from '@/lib/db/queries';
 import { getPublicUrl } from '@/lib/r2-storage';
 
@@ -13,76 +14,56 @@ const confirmUploadSchema = z.object({
   messageId: z.string().uuid().optional(),
 });
 
-export async function POST(request: NextRequest) {
-  try {
-    // Authenticate user
-    const authResult = await requireAuthApi();
-    if ('error' in authResult) {
-      return NextResponse.json(
-        { error: authResult.error },
-        { status: authResult.status }
-      );
-    }
-
-    const { user } = authResult;
-    const body = await request.json();
-    
-    // Validate request body
-    const validation = confirmUploadSchema.safeParse(body);
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Invalid request data', details: validation.error.errors },
-        { status: 400 }
-      );
-    }
-
-    const { fileKey, filename, contentType, size, chatId, messageId } = validation.data;
-
-    // chatId is required for files - if not provided, we need to create a temporary chat or handle differently
-    if (!chatId) {
-      return NextResponse.json(
-        { error: 'chatId is required for file uploads' },
-        { status: 400 }
-      );
-    }
-
-    // Generate public URL for the file
-    const publicUrl = getPublicUrl(fileKey);
-
-    // Save file metadata to database
-    const file = await createFile({
-      userId: user.id,
-      messageId: messageId || null,
-      chatId: chatId,
-      filename,
-      mimeType: contentType,
-      fileSize: size,
-      r2Key: fileKey,
-      r2Url: publicUrl,
-      status: 'uploaded',
-      metadata: {
-        uploadedAt: new Date().toISOString(),
-        originalName: filename,
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      file: {
-        id: file.id,
-        filename: file.filename,
-        url: file.r2Url,
-        contentType: file.mimeType,
-        size: file.fileSize,
-        uploadedAt: file.createdAt,
-      },
-    });
-
-  } catch (error) {
-    console.error('Upload confirmation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to confirm upload' },
-      { status: 500 }
-    );
+async function postHandler(
+  request: NextRequest, 
+  user: { id: string; email: string; name?: string }
+) {
+  const body = await request.json();
+  
+  // Validate request body
+  const validation = confirmUploadSchema.safeParse(body);
+  if (!validation.success) {
+    throw new Error(`Invalid request data: ${validation.error.errors.map(e => e.message).join(', ')}`);
   }
+
+  const { fileKey, filename, contentType, size, chatId, messageId } = validation.data;
+
+  // chatId is required for files - if not provided, we need to create a temporary chat or handle differently
+  if (!chatId) {
+    throw new Error('chatId is required for file uploads');
+  }
+
+  // Generate public URL for the file
+  const publicUrl = getPublicUrl(fileKey);
+
+  // Save file metadata to database
+  const file = await createFile({
+    userId: user.id,
+    messageId: messageId || null,
+    chatId: chatId,
+    filename,
+    mimeType: contentType,
+    fileSize: size,
+    r2Key: fileKey,
+    r2Url: publicUrl,
+    status: 'uploaded',
+    metadata: {
+      uploadedAt: new Date().toISOString(),
+      originalName: filename,
+    },
+  });
+
+  return NextResponse.json({
+    success: true,
+    file: {
+      id: file.id,
+      filename: file.filename,
+      url: file.r2Url,
+      contentType: file.mimeType,
+      size: file.fileSize,
+      uploadedAt: file.createdAt,
+    },
+  });
 }
+
+export const POST = withErrorHandling(withAuthUser(postHandler));

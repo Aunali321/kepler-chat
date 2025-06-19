@@ -455,9 +455,10 @@ export const useAppStore = create<AppState>()(
         if (!prefs) return;
         
         set((state) => {
-          // Update preferences
-          if (prefs.theme) state.preferences.theme = prefs.theme;
-          if (prefs.language) state.preferences.language = prefs.language;
+          // Update preferences from consolidated userSettings structure
+          const preferences = prefs.preferences as any || {};
+          if (preferences.theme) state.preferences.theme = preferences.theme;
+          if (preferences.language) state.preferences.language = preferences.language;
           if (prefs.notificationSettings && typeof prefs.notificationSettings === 'object') {
             // Merge with defaults to ensure all required properties exist
             state.preferences.notificationSettings = {

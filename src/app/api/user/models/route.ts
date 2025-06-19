@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth-server';
 import {
-  getUserCustomModels,
-  createUserCustomModel,
-  updateUserCustomModel,
-  deleteUserCustomModel
+  getUserProviders,
+  getUserProvider,
+  updateUserProvider
 } from '@/lib/db/queries';
 import type { ProviderType } from '@/lib/db/types';
 
@@ -19,7 +18,18 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const provider = searchParams.get('provider') as ProviderType | undefined;
 
-    const models = await getUserCustomModels(user.id, provider);
+    // Get all providers or specific provider
+    const providers = provider 
+      ? [await getUserProvider(user.id, provider)].filter(Boolean)
+      : await getUserProviders(user.id);
+
+    // Extract custom models from all providers
+    const models = providers.flatMap(p => 
+      (p?.customModels as any[] || []).map(model => ({
+        ...model,
+        provider: p.provider
+      }))
+    );
 
     return NextResponse.json({ models });
   } catch (error) {
@@ -28,7 +38,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/user/models - Create a new custom model
+// POST /api/user/models - Create a new custom model (now handled via provider updates)
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();
@@ -59,20 +69,17 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Validate provider type
-    const validProviders: ProviderType[] = [
-      'openai', 'anthropic', 'google', 'openrouter', 'deepseek', 'togetherai', 'groq', 'mistral'
-    ];
-
-    if (!validProviders.includes(provider)) {
+    // Get or create provider
+    let providerConfig = await getUserProvider(user.id, provider);
+    if (!providerConfig) {
       return NextResponse.json({
-        error: 'Invalid provider'
+        error: 'Provider not configured. Please add API key first.'
       }, { status: 400 });
     }
 
-    const model = await createUserCustomModel({
-      userId: user.id,
-      provider,
+    // Build the new model object
+    const newModel = {
+      id: crypto.randomUUID(),
       modelId,
       displayName,
       description: description || null,
@@ -86,16 +93,24 @@ export async function POST(request: NextRequest) {
       costPer1kOutputTokens: costPer1kOutputTokens || '0',
       isActive: true,
       metadata: metadata || {},
+    };
+
+    // Add to custom models array
+    const existingModels = (providerConfig.customModels as any[]) || [];
+    const updatedModels = [...existingModels, newModel];
+
+    await updateUserProvider(user.id, provider, {
+      customModels: updatedModels
     });
 
-    return NextResponse.json({ model });
+    return NextResponse.json({ model: newModel });
   } catch (error) {
     console.error('Error creating custom model:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
-// PUT /api/user/models - Update a custom model
+// PUT /api/user/models - Update a custom model (now handled via provider updates)
 export async function PUT(request: NextRequest) {
   try {
     const user = await getCurrentUser();
@@ -103,57 +118,48 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const {
-      id,
-      displayName,
-      description,
-      maxTokens,
-      supportsVision,
-      supportsTools,
-      supportsAudio,
-      supportsVideo,
-      supportsDocument,
-      costPer1kInputTokens,
-      costPer1kOutputTokens,
-      isActive,
-      metadata
-    } = await request.json();
+    const updateData = await request.json();
+    const { id, provider } = updateData;
 
-    if (!id) {
+    if (!id || !provider) {
       return NextResponse.json({
-        error: 'Model ID is required'
+        error: 'Model ID and provider are required'
       }, { status: 400 });
     }
 
-    const updatedModel = await updateUserCustomModel(user.id, id, {
-      displayName,
-      description,
-      maxTokens,
-      supportsVision,
-      supportsTools,
-      supportsAudio,
-      supportsVideo,
-      supportsDocument,
-      costPer1kInputTokens,
-      costPer1kOutputTokens,
-      isActive,
-      metadata,
-    });
+    // Get provider config
+    const providerConfig = await getUserProvider(user.id, provider);
+    if (!providerConfig) {
+      return NextResponse.json({
+        error: 'Provider not found'
+      }, { status: 404 });
+    }
 
-    if (!updatedModel) {
+    // Update model in custom models array
+    const existingModels = (providerConfig.customModels as any[]) || [];
+    const modelIndex = existingModels.findIndex(m => m.id === id);
+    
+    if (modelIndex === -1) {
       return NextResponse.json({
         error: 'Model not found'
       }, { status: 404 });
     }
 
-    return NextResponse.json({ model: updatedModel });
+    // Update the model
+    existingModels[modelIndex] = { ...existingModels[modelIndex], ...updateData };
+
+    await updateUserProvider(user.id, provider, {
+      customModels: existingModels
+    });
+
+    return NextResponse.json({ model: existingModels[modelIndex] });
   } catch (error) {
     console.error('Error updating custom model:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
-// DELETE /api/user/models - Delete a custom model
+// DELETE /api/user/models - Delete a custom model (now handled via provider updates)
 export async function DELETE(request: NextRequest) {
   try {
     const user = await getCurrentUser();
@@ -163,20 +169,35 @@ export async function DELETE(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const modelId = searchParams.get('id');
+    const provider = searchParams.get('provider');
 
-    if (!modelId) {
+    if (!modelId || !provider) {
       return NextResponse.json({
-        error: 'Model ID is required'
+        error: 'Model ID and provider are required'
       }, { status: 400 });
     }
 
-    const deletedModel = await deleteUserCustomModel(user.id, modelId);
+    // Get provider config
+    const providerConfig = await getUserProvider(user.id, provider as ProviderType);
+    if (!providerConfig) {
+      return NextResponse.json({
+        error: 'Provider not found'
+      }, { status: 404 });
+    }
 
-    if (!deletedModel) {
+    // Remove model from custom models array
+    const existingModels = (providerConfig.customModels as any[]) || [];
+    const filteredModels = existingModels.filter(m => m.id !== modelId);
+    
+    if (filteredModels.length === existingModels.length) {
       return NextResponse.json({
         error: 'Model not found'
       }, { status: 404 });
     }
+
+    await updateUserProvider(user.id, provider as ProviderType, {
+      customModels: filteredModels
+    });
 
     return NextResponse.json({
       message: 'Model deleted successfully',

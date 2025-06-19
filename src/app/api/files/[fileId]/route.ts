@@ -1,103 +1,73 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuthApi } from '@/lib/auth-server';
+import { withAuthUser } from '@/lib/middleware/auth';
+import { withErrorHandling } from '@/lib/middleware/error';
 import { getFileById, deleteFile } from '@/lib/db/queries';
 import { deleteFile as deleteFileFromR2 } from '@/lib/r2-storage';
 
 // Force Node.js runtime for database access
 export const runtime = 'nodejs';
 
-export async function GET(
+async function getHandler(
   request: NextRequest,
-  { params }: { params: Promise<{ fileId: string }> }
+  user: { id: string; email: string; name?: string },
+  context?: { params: Promise<{ fileId: string }> }
 ) {
-  try {
-    // Authenticate user
-    const authResult = await requireAuthApi();
-    if ('error' in authResult) {
-      return NextResponse.json(
-        { error: authResult.error },
-        { status: authResult.status }
-      );
-    }
-
-    const { user } = authResult;
-    const { fileId } = await params;
-
-    // Get file metadata
-    const file = await getFileById(fileId, user.id);
-    if (!file) {
-      return NextResponse.json(
-        { error: 'File not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({
-      id: file.id,
-      filename: file.filename,
-      url: file.r2Url,
-      contentType: file.mimeType,
-      size: file.fileSize,
-      uploadedAt: file.createdAt,
-      status: file.status,
-    });
-
-  } catch (error) {
-    console.error('File retrieval error:', error);
-    return NextResponse.json(
-      { error: 'Failed to retrieve file' },
-      { status: 500 }
-    );
+  if (!context?.params) {
+    throw new Error('Missing file ID parameter');
   }
+  
+  const { fileId } = await context.params;
+
+  // Get file metadata
+  const file = await getFileById(fileId, user.id);
+  if (!file) {
+    throw new Error('File not found');
+  }
+
+  return NextResponse.json({
+    id: file.id,
+    filename: file.filename,
+    url: file.r2Url,
+    contentType: file.mimeType,
+    size: file.fileSize,
+    uploadedAt: file.createdAt,
+    status: file.status,
+  });
 }
 
-export async function DELETE(
+async function deleteHandler(
   request: NextRequest,
-  { params }: { params: Promise<{ fileId: string }> }
+  user: { id: string; email: string; name?: string },
+  context?: { params: Promise<{ fileId: string }> }
 ) {
-  try {
-    // Authenticate user
-    const authResult = await requireAuthApi();
-    if ('error' in authResult) {
-      return NextResponse.json(
-        { error: authResult.error },
-        { status: authResult.status }
-      );
-    }
-
-    const { user } = authResult;
-    const { fileId } = await params;
-
-    // Get file metadata to verify ownership
-    const file = await getFileById(fileId, user.id);
-    if (!file) {
-      return NextResponse.json(
-        { error: 'File not found' },
-        { status: 404 }
-      );
-    }
-
-    // Delete file from R2
-    try {
-      await deleteFileFromR2(file.r2Key);
-    } catch (r2Error) {
-      console.error('R2 deletion error:', r2Error);
-      // Continue with database deletion even if R2 deletion fails
-    }
-
-    // Delete file record from database
-    await deleteFile(fileId, user.id);
-
-    return NextResponse.json({
-      success: true,
-      message: 'File deleted successfully',
-    });
-
-  } catch (error) {
-    console.error('File deletion error:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete file' },
-      { status: 500 }
-    );
+  if (!context?.params) {
+    throw new Error('Missing file ID parameter');
   }
+  
+  const { fileId } = await context.params;
+
+  // Get file metadata to verify ownership
+  const file = await getFileById(fileId, user.id);
+  if (!file) {
+    throw new Error('File not found');
+  }
+
+  // Delete file from R2
+  try {
+    await deleteFileFromR2(file.r2Key);
+  } catch (r2Error) {
+    console.error('R2 deletion error:', r2Error);
+    // Continue with database deletion even if R2 deletion fails
+  }
+
+  // Delete file record from database
+  await deleteFile(fileId, user.id);
+
+  return NextResponse.json({
+    success: true,
+    message: 'File deleted successfully',
+  });
 }
+
+export const GET = withErrorHandling(withAuthUser(getHandler));
+export const DELETE = withErrorHandling(withAuthUser(deleteHandler));

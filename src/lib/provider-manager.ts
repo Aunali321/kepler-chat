@@ -2,7 +2,7 @@ import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { google } from '@ai-sdk/google';
 import { openrouter } from '@openrouter/ai-sdk-provider';
-import { getUserApiKeys, getUserApiKey, getUserCustomModels, getUserProviderPreferences, setApiKeyValidationStatus } from '@/lib/db/queries';
+import { getUserProviders, getUserProvider, setProviderValidationStatus } from '@/lib/db/queries';
 import { decryptApiKey } from '@/lib/crypto';
 import type { ProviderType, ModelConfig, ProviderConfig } from '@/lib/db/types';
 import { ApiKeyValidator } from './api-key-validator';
@@ -165,24 +165,14 @@ const DEFAULT_MODELS: Record<ProviderType, ModelConfig[]> = {
 };
 
 // Cached functions for better performance
-const getCachedUserApiKeys = unstable_cache(getUserApiKeys, ['user-api-keys'], {
+const getCachedUserProviders = unstable_cache(getUserProviders, ['user-providers'], {
   revalidate: 300, // 5 minutes
-  tags: ['user-api-keys']
+  tags: ['user-providers']
 });
 
-const getCachedUserApiKey = unstable_cache(getUserApiKey, ['user-api-key'], {
+const getCachedUserProvider = unstable_cache(getUserProvider, ['user-provider'], {
   revalidate: 300,
-  tags: ['user-api-key']
-});
-
-const getCachedUserPreferences = unstable_cache(getUserProviderPreferences, ['user-preferences'], {
-  revalidate: 300,
-  tags: ['user-preferences']
-});
-
-const getCachedUserCustomModels = unstable_cache(getUserCustomModels, ['user-custom-models'], {
-  revalidate: 300,
-  tags: ['user-custom-models']
+  tags: ['user-provider']
 });
 
 /**
@@ -190,11 +180,11 @@ const getCachedUserCustomModels = unstable_cache(getUserCustomModels, ['user-cus
  */
 async function loadApiKey(userId: string, provider: ProviderType): Promise<string | null> {
   try {
-    const storedKey = await getCachedUserApiKey(userId, provider);
-    if (!storedKey || storedKey.validationStatus !== 'valid') {
+    const providerConfig = await getCachedUserProvider(userId, provider);
+    if (!providerConfig || providerConfig.validationStatus !== 'valid' || !providerConfig.encryptedApiKey) {
       return null;
     }
-    return decryptApiKey(storedKey.encryptedApiKey);
+    return decryptApiKey(providerConfig.encryptedApiKey);
   } catch (error) {
     console.error(`Failed to load API key for ${provider}:`, error);
     return null;
@@ -209,34 +199,29 @@ export async function getProviderConfig(userId: string, provider: ProviderType):
   if (!defaultModels) return null;
 
   try {
-    const userApiKey = await getCachedUserApiKey(userId, provider);
-    const userPreferences = await getCachedUserPreferences(userId);
-    const customModels = await getCachedUserCustomModels(userId);
+    const providerConfig = await getCachedUserProvider(userId, provider);
 
-    const userPreference = userPreferences.find(p => p.provider === provider);
-    const userCustomModels = customModels
-      .filter(model => model.provider === provider)
-      .map(model => ({
-        id: model.modelId,
-        displayName: model.displayName,
-        description: model.description || '',
-        maxTokens: Number(model.maxTokens),
-        supportsVision: model.supportsVision || false,
-        supportsTools: model.supportsTools || false,
-        supportsAudio: model.supportsAudio || false,
-        supportsVideo: model.supportsVideo || false,
-        supportsDocument: model.supportsDocument || false,
-        costPer1kInputTokens: Number(model.costPer1kInputTokens),
-        costPer1kOutputTokens: Number(model.costPer1kOutputTokens),
-        isCustom: true,
-      }));
+    const userCustomModels = (providerConfig?.customModels as any[] || []).map(model => ({
+      id: model.modelId || model.id,
+      displayName: model.displayName,
+      description: model.description || '',
+      maxTokens: Number(model.maxTokens),
+      supportsVision: model.supportsVision || false,
+      supportsTools: model.supportsTools || false,
+      supportsAudio: model.supportsAudio || false,
+      supportsVideo: model.supportsVideo || false,
+      supportsDocument: model.supportsDocument || false,
+      costPer1kInputTokens: Number(model.costPer1kInputTokens),
+      costPer1kOutputTokens: Number(model.costPer1kOutputTokens),
+      isCustom: true,
+    }));
 
     return {
       provider,
-      isEnabled: userPreference?.isEnabled || false,
-      hasApiKey: !!userApiKey,
-      apiKeyValid: userApiKey?.validationStatus === 'valid',
-      defaultModel: userPreference?.defaultModel,
+      isEnabled: providerConfig?.isEnabled || false,
+      hasApiKey: !!providerConfig?.encryptedApiKey,
+      apiKeyValid: providerConfig?.validationStatus === 'valid',
+      defaultModel: providerConfig?.defaultModel,
       availableModels: defaultModels,
       customModels: userCustomModels,
     };
@@ -287,20 +272,16 @@ export async function getModelInstance(userId: string, providerId: ProviderType,
  */
 export async function getAvailableProviders(userId: string): Promise<ProviderType[]> {
   try {
-    const userPreferences = await getCachedUserPreferences(userId);
-    const userApiKeys = await getCachedUserApiKeys(userId);
+    const userProviders = await getCachedUserProviders(userId);
 
     const availableProviders: ProviderType[] = [];
 
     for (const provider of Object.keys(DEFAULT_MODELS) as ProviderType[]) {
-      const hasValidKey = userApiKeys.some(
-        key => key.provider === provider && key.validationStatus === 'valid'
-      );
-      const isEnabled = userPreferences.some(
-        pref => pref.provider === provider && pref.isEnabled
-      );
-
-      if (hasValidKey && isEnabled) {
+      const providerConfig = userProviders.find(p => p.provider === provider);
+      
+      if (providerConfig?.isEnabled && 
+          providerConfig?.encryptedApiKey && 
+          providerConfig?.validationStatus === 'valid') {
         availableProviders.push(provider);
       }
     }
@@ -335,14 +316,14 @@ export async function getDefaultModel(userId: string): Promise<{ providerId: Pro
       return null;
     }
 
-    const userPreferences = await getCachedUserPreferences(userId);
+    const userProviders = await getCachedUserProviders(userId);
 
     // Check user's default provider preference
     for (const provider of availableProviders) {
-      const preference = userPreferences.find(p => p.provider === provider);
-      if (preference?.defaultModel) {
+      const providerConfig = userProviders.find(p => p.provider === provider);
+      if (providerConfig?.defaultModel) {
         const models = await getAvailableModels(userId, provider);
-        const model = models.find(m => m.id === preference.defaultModel);
+        const model = models.find(m => m.id === providerConfig.defaultModel);
         if (model) {
           return { providerId: provider, modelId: model.id };
         }
@@ -378,7 +359,7 @@ export async function validateAndStoreApiKey(userId: string, provider: ProviderT
   try {
     const result = await ApiKeyValidator.validateApiKey(provider, apiKey);
 
-    await setApiKeyValidationStatus(
+    await setProviderValidationStatus(
       userId,
       provider,
       result.isValid ? 'valid' : 'invalid'

@@ -1,6 +1,6 @@
 import { redirect, notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth-server";
-import { getChatShare } from "@/lib/db/queries";
+import { getChatShare, getSharedChatDetails } from "@/lib/db/queries";
 import { SharedMessageList } from "@/components/chat/shared-message-list";
 import { type Message } from "ai/react";
 
@@ -16,11 +16,14 @@ export default async function SharedChatPage({ params }: SharedChatPageProps) {
 
   try {
     const share = await getChatShare(token);
-    if (!share || !share.chat) {
+    if (!share) {
       notFound();
     }
 
-    const chatData = share.chat;
+    const chatData = await getSharedChatDetails(share.chatId);
+    if (!chatData) {
+      notFound();
+    }
 
     const canView =
       share.isPublic || (user && user.id === share.sharedByUserId);

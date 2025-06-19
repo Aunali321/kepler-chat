@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withAuthUser } from '@/lib/middleware/auth';
 import { withErrorHandling } from '@/lib/middleware/error';
 import {
-  getUserApiKeys,
-  getUserApiKey,
-  createUserApiKey,
-  updateUserApiKey,
-  deleteUserApiKey,
-  setApiKeyValidationStatus
+  getUserProviders,
+  getUserProvider,
+  createUserProvider,
+  updateUserProvider,
+  deleteUserProvider,
+  setProviderValidationStatus
 } from '@/lib/db/queries';
 import { encryptApiKey, decryptApiKey, maskApiKey } from '@/lib/crypto';
 import type { ProviderType } from '@/lib/db/types';
@@ -15,14 +15,19 @@ import type { ProviderType } from '@/lib/db/types';
 // GET /api/user/api-keys - Get all API keys for the current user
 async function getHandler(request: NextRequest, user: { id: string; email: string; name?: string }) {
   try {
-    const apiKeys = await getUserApiKeys(user.id);
+    const providers = await getUserProviders(user.id);
 
     // Return masked API keys for security
-    const maskedApiKeys = apiKeys.map(key => ({
-      ...key,
+    const maskedApiKeys = providers.map(provider => ({
+      id: provider.id,
+      provider: provider.provider,
+      isActive: provider.isEnabled,
+      lastValidated: provider.lastValidated,
+      createdAt: provider.createdAt,
+      updatedAt: provider.updatedAt,
       encryptedApiKey: undefined, // Never return the encrypted key
-      maskedApiKey: key.encryptedApiKey ? maskApiKey('****') : null, // Just show it exists
-      hasApiKey: !!key.encryptedApiKey,
+      maskedApiKey: provider.encryptedApiKey ? maskApiKey('****') : null, // Just show it exists
+      hasApiKey: !!provider.encryptedApiKey,
     }));
 
     return NextResponse.json({ apiKeys: maskedApiKeys });
@@ -56,34 +61,37 @@ async function postHandler(request: NextRequest, user: { id: string; email: stri
     // Encrypt the API key
     const encryptedApiKey = encryptApiKey(apiKey);
 
-    // Check if API key already exists for this provider
-    const existingKey = await getUserApiKey(user.id, provider);
+    // Check if provider config already exists
+    const existingProvider = await getUserProvider(user.id, provider);
 
-    let savedKey;
-    if (existingKey) {
-      // Update existing API key
-      savedKey = await updateUserApiKey(user.id, provider, {
+    let savedProvider;
+    if (existingProvider) {
+      // Update existing provider
+      savedProvider = await updateUserProvider(user.id, provider, {
         encryptedApiKey,
-        metadata: metadata || {},
-        validationStatus: 'pending',
-        isActive: true,
+        settings: metadata || {},
+        isEnabled: true,
       });
     } else {
-      // Create new API key
-      savedKey = await createUserApiKey({
+      // Create new provider
+      savedProvider = await createUserProvider({
         userId: user.id,
         provider,
         encryptedApiKey,
-        metadata: metadata || {},
-        validationStatus: 'pending',
-        isActive: true,
+        settings: metadata || {},
+        isEnabled: true,
       });
     }
 
-    // Return the saved key without the encrypted value
+    // Return the saved provider without the encrypted value
     return NextResponse.json({
       apiKey: {
-        ...savedKey,
+        id: savedProvider.id,
+        provider: savedProvider.provider,
+        isActive: savedProvider.isEnabled,
+        lastValidated: savedProvider.lastValidated,
+        createdAt: savedProvider.createdAt,
+        updatedAt: savedProvider.updatedAt,
         encryptedApiKey: undefined,
         hasApiKey: true,
         maskedApiKey: maskApiKey(apiKey),
@@ -106,9 +114,9 @@ async function deleteHandler(request: NextRequest, user: { id: string; email: st
       }, { status: 400 });
     }
 
-    const deletedKey = await deleteUserApiKey(user.id, provider);
+    const deletedProvider = await deleteUserProvider(user.id, provider);
 
-    if (!deletedKey) {
+    if (!deletedProvider) {
       return NextResponse.json({
         error: 'API key not found'
       }, { status: 404 });
