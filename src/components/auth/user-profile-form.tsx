@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/components/auth-provider";
-import { useForm } from "@/lib/stores/form-store";
+// Note: form-store was removed in Phase 2, using react-hook-form directly
 import { PasswordInput } from "../ui/password-input";
 
 const profileSchema = z.object({
@@ -43,9 +43,8 @@ export function UserProfileForm() {
   // Notification store available for future use
   // const notify = useNotify();
 
-  // Use our new form store
-  const formStore = useForm('user-profile-form');
-  const { form: formState, handleSubmit, setDirty } = formStore;
+  // State for form submission
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const reactHookForm = useReactHookForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
@@ -71,36 +70,35 @@ export function UserProfileForm() {
     }
   }, [user, reactHookForm]);
 
-  // Mark form as dirty when values change
-  reactHookForm.watch(() => {
-    if (!formState.isDirty) {
-      setDirty(true);
-    }
-  });
+  const onSubmit = async (values: ProfileFormData) => {
+    setIsSubmitting(true);
+    try {
+      // Update user profile via API
+      const response = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(values),
+      });
 
-  const onSubmit = async (_values: ProfileFormData) => {
-    const result = await handleSubmit(
-      async () => {
-        // TODO: Implement profile update with BetterAuth
-        // For now, simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        // Mock success for now - in real implementation:
-        // const result = await updateProfile(values);
-
-        return { success: true };
-      },
-      {
-        successMessage: "Profile updated successfully!",
-        showNotifications: true,
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update profile');
       }
-    );
 
-    if (result) {
       // Clear password fields after successful update
       reactHookForm.setValue("currentPassword", "");
       reactHookForm.setValue("newPassword", "");
       reactHookForm.setValue("confirmNewPassword", "");
+      
+      // Show success message
+      // notify({ type: 'success', message: 'Profile updated successfully!' });
+    } catch (error) {
+      console.error('Profile update failed:', error);
+      // notify({ type: 'error', message: error instanceof Error ? error.message : 'Failed to update profile' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -155,7 +153,7 @@ export function UserProfileForm() {
                     <FormControl>
                       <Input
                         placeholder="Enter your full name"
-                        disabled={formState.isLoading}
+                        disabled={isSubmitting}
                         {...field}
                       />
                     </FormControl>
@@ -174,7 +172,7 @@ export function UserProfileForm() {
                       <Input
                         type="email"
                         placeholder="Enter your email"
-                        disabled={formState.isLoading}
+                        disabled={isSubmitting}
                         {...field}
                       />
                     </FormControl>
@@ -203,7 +201,7 @@ export function UserProfileForm() {
                         fieldId="profile-current-password"
                         placeholder="Enter your current password"
                         autoComplete="current-password"
-                        disabled={formState.isLoading}
+                        disabled={isSubmitting}
                       />
                     </FormControl>
                     <FormMessage />
@@ -223,7 +221,7 @@ export function UserProfileForm() {
                         fieldId="profile-new-password"
                         placeholder="Enter your new password"
                         autoComplete="new-password"
-                        disabled={formState.isLoading}
+                        disabled={isSubmitting}
                         strengthIndicator
                       />
                     </FormControl>
@@ -244,7 +242,7 @@ export function UserProfileForm() {
                         fieldId="profile-confirm-new-password"
                         placeholder="Confirm your new password"
                         autoComplete="new-password"
-                        disabled={formState.isLoading}
+                        disabled={isSubmitting}
                       />
                     </FormControl>
                     <FormMessage />
@@ -253,8 +251,8 @@ export function UserProfileForm() {
               />
             </div>
 
-            <Button type="submit" disabled={formState.isLoading} className="w-full">
-              {formState.isLoading ? (
+            <Button type="submit" disabled={isSubmitting} className="w-full">
+              {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Updating profile...

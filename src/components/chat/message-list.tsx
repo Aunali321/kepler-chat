@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, memo } from 'react';
 import { MessageRenderer } from './message-renderer';
 import type { Message } from 'ai';
 
@@ -9,7 +9,7 @@ interface MessageListProps {
   isLoading: boolean;
 }
 
-export function MessageList({ messages, isLoading }: MessageListProps) {
+export const MessageList = memo(function MessageList({ messages, isLoading }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -52,4 +52,4 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
       <div ref={messagesEndRef} className="h-0" />
     </div>
   );
-}
+});

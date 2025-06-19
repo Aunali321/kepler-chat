@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Send,
@@ -33,7 +33,7 @@ interface ChatInputProps {
   chatId?: string;
 }
 
-export function ChatInput({
+export const ChatInput = memo(function ChatInput({
   input,
   handleInputChange,
   handleSubmit,
@@ -399,4 +399,4 @@ export function ChatInput({
       />
     </div>
   );
-}
+});

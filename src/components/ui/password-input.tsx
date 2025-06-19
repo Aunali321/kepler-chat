@@ -1,10 +1,9 @@
 'use client';
 
-import { forwardRef } from 'react';
+import { forwardRef, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { usePasswordField } from '@/lib/stores/password-store';
 import { cn } from '@/lib/utils';
 
 export interface PasswordInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'> {
@@ -15,25 +14,24 @@ export interface PasswordInputProps extends Omit<React.InputHTMLAttributes<HTMLI
 
 export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
   ({ className, fieldId, showToggle = true, strengthIndicator = false, disabled, ...props }, ref) => {
-    // Generate unique field ID if not provided
-    const uniqueFieldId = fieldId || `password-${Math.random().toString(36).substr(2, 9)}`;
-    const { isVisible, toggle } = usePasswordField(uniqueFieldId);
+    const [isVisible, setIsVisible] = useState(false);
+    const toggle = () => setIsVisible(!isVisible);
 
     const getPasswordStrength = (password: string): { score: number; label: string; color: string } => {
       if (!password) return { score: 0, label: '', color: '' };
-      
+
       let score = 0;
-      
+
       // Length check
       if (password.length >= 8) score += 1;
       if (password.length >= 12) score += 1;
-      
+
       // Character variety checks
       if (/[a-z]/.test(password)) score += 1;
       if (/[A-Z]/.test(password)) score += 1;
       if (/[0-9]/.test(password)) score += 1;
       if (/[^a-zA-Z0-9]/.test(password)) score += 1;
-      
+
       if (score <= 2) return { score, label: 'Weak', color: 'bg-red-500' };
       if (score <= 4) return { score, label: 'Medium', color: 'bg-yellow-500' };
       return { score, label: 'Strong', color: 'bg-green-500' };
@@ -51,7 +49,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
             className={cn('pr-10', className)}
             disabled={disabled}
           />
-          
+
           {showToggle && (
             <Button
               type="button"
@@ -78,14 +76,14 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
               <span className={cn(
                 'font-medium',
                 strength?.score === 0 ? 'text-gray-400' :
-                strength?.score <= 2 ? 'text-red-600' :
-                strength?.score <= 4 ? 'text-yellow-600' :
-                'text-green-600'
+                  strength?.score <= 2 ? 'text-red-600' :
+                    strength?.score <= 4 ? 'text-yellow-600' :
+                      'text-green-600'
               )}>
                 {strength?.label}
               </span>
             </div>
-            
+
             <div className="flex space-x-1">
               {Array.from({ length: 6 }, (_, i) => (
                 <div

@@ -1,55 +1,39 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
-import { getCurrentUser } from '@/lib/auth-server';
+import { NextRequest } from 'next/server';
+import { withErrorHandling } from '@/lib/middleware/error';
+import { authMiddleware } from '@/lib/middleware/composed';
+import { responses } from '@/lib/utils/api-response';
+import { userPreferencesSchema } from '@/lib/schemas/api';
 import { 
-  getOrCreateUserPreferences,
-  updateUserPreferences
+  getOrCreateUserSettings,
+  updateUserSettings
 } from '@/lib/db/queries';
+import type { User } from '@/lib/db/types';
 
-const updatePreferencesSchema = z.object({
-  theme: z.enum(['light', 'dark', 'system']).optional(),
-  language: z.string().max(10).optional(),
-  chatSettings: z.record(z.any()).optional(),
-  uiSettings: z.record(z.any()).optional(),
-  notificationSettings: z.record(z.any()).optional(),
-});
-
-export async function GET() {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const preferences = await getOrCreateUserPreferences(user.id);
-    return NextResponse.json({ preferences });
-  } catch (error) {
-    console.error('Error fetching preferences:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+async function getHandler(
+  request: NextRequest, 
+  user: User
+) {
+  const preferences = await getOrCreateUserSettings(user.id);
+  return responses.ok({ preferences });
 }
 
-export async function PUT(request: NextRequest) {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const body = await request.json();
-    const validatedData = updatePreferencesSchema.parse(body);
-
-    const preferences = await updateUserPreferences(user.id, validatedData);
-    if (!preferences) {
-      return NextResponse.json({ error: 'Failed to update preferences' }, { status: 500 });
-    }
-
-    return NextResponse.json({ preferences });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid input', details: error.errors }, { status: 400 });
-    }
-    console.error('Error updating preferences:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+async function putHandler(
+  request: NextRequest, 
+  user: User, 
+  { body }: { body: typeof userPreferencesSchema._type }
+) {
+  const preferences = await updateUserSettings(user.id, { preferences: body });
+  if (!preferences) {
+    throw new Error('Failed to update preferences');
   }
+
+  return responses.updated({ preferences });
 }
+
+export const GET = withErrorHandling(
+  authMiddleware.only(getHandler)
+);
+
+export const PUT = withErrorHandling(
+  authMiddleware.withBody(userPreferencesSchema)(putHandler)
+);

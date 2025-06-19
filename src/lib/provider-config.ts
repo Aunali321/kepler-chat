@@ -1,0 +1,190 @@
+import { getUserProviders as getUserProvidersFromDB, getUserProvider, updateUserProvider, getOrCreateUserProvider } from '@/lib/db/queries';
+import type { ProviderType, ModelConfig, ProviderConfig } from '@/lib/db/types';
+import { unstable_cache } from 'next/cache';
+
+// Default models for each provider
+const DEFAULT_MODELS: Record<ProviderType, ModelConfig[]> = {
+  openai: [
+    {
+      id: 'gpt-4.1-mini',
+      displayName: 'GPT 4.1 Mini',
+      description: 'Most cost-efficient GPT-4 model',
+      maxTokens: 128000,
+      supportsVision: true,
+      supportsTools: true,
+      supportsAudio: false,
+      supportsVideo: false,
+      supportsDocument: false,
+      costPer1kInputTokens: 0.4 / 1000,
+      costPer1kOutputTokens: 1.6 / 1000,
+      isCustom: false,
+    },
+    {
+      id: 'o4-mini',
+      displayName: 'o4 Mini',
+      description: 'Intelligent reasoning and coding model',
+      maxTokens: 128000,
+      supportsVision: true,
+      supportsTools: true,
+      supportsAudio: false,
+      supportsVideo: false,
+      supportsDocument: false,
+      costPer1kInputTokens: 0.0011,
+      costPer1kOutputTokens: 0.0044,
+      isCustom: false,
+    },
+  ],
+  anthropic: [
+    {
+      id: 'claude-sonnet-4-20250514',
+      displayName: 'Claude 4 Sonnet',
+      description: 'Strong reasoning and coding capabilities',
+      maxTokens: 200000,
+      supportsVision: true,
+      supportsTools: true,
+      supportsAudio: false,
+      supportsVideo: false,
+      supportsDocument: true,
+      costPer1kInputTokens: 3.0 / 1000,
+      costPer1kOutputTokens: 15.0 / 1000,
+      isCustom: false,
+    },
+    {
+      id: 'claude-3-5-haiku-20241022',
+      displayName: 'Claude 3.5 Haiku',
+      description: 'Fast and efficient Claude model',
+      maxTokens: 200000,
+      supportsVision: true,
+      supportsTools: true,
+      supportsAudio: false,
+      supportsVideo: false,
+      supportsDocument: true,
+      costPer1kInputTokens: 0.80 / 1000,
+      costPer1kOutputTokens: 4.0 / 1000,
+      isCustom: false,
+    },
+  ],
+  google: [
+    {
+      id: 'gemini-2.5-flash',
+      displayName: 'Gemini 2.5 Flash',
+      description: 'Cost-efficient Gemini model with multi-modal capabilities',
+      maxTokens: 1048576,
+      supportsVision: true,
+      supportsTools: true,
+      supportsAudio: true,
+      supportsVideo: true,
+      supportsDocument: true,
+      costPer1kInputTokens: 0.15 / 1000,
+      costPer1kOutputTokens: 0.60 / 1000,
+      isCustom: false,
+    },
+  ],
+  openrouter: [
+    {
+      id: 'anthropic/claude-sonnet-4',
+      displayName: 'Claude 4 Sonnet',
+      description: 'Strong reasoning and coding capabilities',
+      maxTokens: 200000,
+      supportsVision: true,
+      supportsTools: true,
+      supportsAudio: false,
+      supportsVideo: false,
+      supportsDocument: true,
+      costPer1kInputTokens: 3.0 / 1000,
+      costPer1kOutputTokens: 15.0 / 1000,
+      isCustom: false,
+    },
+  ],
+  deepseek: [],
+  togetherai: [],
+  groq: [],
+  mistral: [],
+};
+
+// Cached functions for better performance
+const getCachedUserProviders = unstable_cache(getUserProvidersFromDB, ['user-providers'], {
+  revalidate: 300,
+  tags: ['user-providers']
+});
+
+const getCachedUserProvider = unstable_cache(getUserProvider, ['user-provider'], {
+  revalidate: 300,
+  tags: ['user-provider']
+});
+
+/**
+ * Get provider configuration for a user
+ */
+export async function getProviderConfig(userId: string, provider: ProviderType): Promise<ProviderConfig | null> {
+  const defaultModels = DEFAULT_MODELS[provider];
+  if (!defaultModels) return null;
+
+  try {
+    const providerConfig = await getCachedUserProvider(userId, provider);
+
+    const userCustomModels = (providerConfig?.customModels as any[] || []).map(model => ({
+      id: model.modelId || model.id,
+      displayName: model.displayName,
+      description: model.description || '',
+      maxTokens: Number(model.maxTokens),
+      supportsVision: model.supportsVision || false,
+      supportsTools: model.supportsTools || false,
+      supportsAudio: model.supportsAudio || false,
+      supportsVideo: model.supportsVideo || false,
+      supportsDocument: model.supportsDocument || false,
+      costPer1kInputTokens: Number(model.costPer1kInputTokens),
+      costPer1kOutputTokens: Number(model.costPer1kOutputTokens),
+      isCustom: true,
+    }));
+
+    return {
+      provider,
+      isEnabled: providerConfig?.isEnabled || false,
+      hasApiKey: !!providerConfig?.encryptedApiKey,
+      apiKeyValid: providerConfig?.validationStatus === 'valid',
+      defaultModel: providerConfig?.defaultModel,
+      availableModels: defaultModels,
+      customModels: userCustomModels,
+    };
+  } catch (error) {
+    console.error(`Failed to get provider config for ${provider}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Get all providers user has configured
+ */
+export async function getUserProviders(userId: string): Promise<ProviderConfig[]> {
+  try {
+    const userProviders = await getCachedUserProviders(userId);
+    const configs: ProviderConfig[] = [];
+
+    for (const provider of Object.keys(DEFAULT_MODELS) as ProviderType[]) {
+      const config = await getProviderConfig(userId, provider);
+      if (config) {
+        configs.push(config);
+      }
+    }
+
+    return configs;
+  } catch (error) {
+    console.error('Failed to get user providers:', error);
+    return [];
+  }
+}
+
+/**
+ * Save provider configuration
+ */
+export async function saveProviderConfig(
+  userId: string,
+  provider: ProviderType, 
+  config: Partial<ProviderConfig>
+): Promise<void> {
+  await updateUserProvider(userId, provider, {
+    isEnabled: config.isEnabled,
+    defaultModel: config.defaultModel,
+  });
+}

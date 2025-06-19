@@ -6,21 +6,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
-import { useSettingsStore } from '@/lib/stores/settings-store';
+import { useAppStore } from '@/lib/stores/app-store';
 import { useProviderStore } from '@/lib/stores/provider-store';
 import { ProviderSettings } from './provider-settings';
 
 export function PreferencesForm() {
   const {
     // State
-    theme,
-    language,
-    chatSettings,
-    uiSettings,
-    notificationSettings,
-    isLoading,
-    isSaving,
-    hasChanges,
+    preferences: { theme, language, notificationSettings, isLoading, isSaving, hasChanges },
+    chat: chatSettings,
+    ui: uiSettings,
     // Actions
     loadPreferences,
     savePreferences,
@@ -28,7 +23,7 @@ export function PreferencesForm() {
     updateChatSetting,
     updateUISetting,
     updateNotificationSetting,
-  } = useSettingsStore();
+  } = useAppStore();
 
   const {
     providers,
@@ -98,34 +93,6 @@ export function PreferencesForm() {
               <option value="system">System</option>
             </select>
           </div>
-
-          <div>
-            <Label htmlFor="fontSize">Font Size</Label>
-            <select
-              id="fontSize"
-              value={uiSettingsObj.fontSize || 'medium'}
-              onChange={(e) => updateUISetting('fontSize', e.target.value)}
-              className="w-full p-2 border rounded-md mt-1"
-            >
-              <option value="small">Small</option>
-              <option value="medium">Medium</option>
-              <option value="large">Large</option>
-            </select>
-          </div>
-
-          <div>
-            <Label htmlFor="sidebarWidth">Sidebar Width</Label>
-            <select
-              id="sidebarWidth"
-              value={uiSettingsObj.sidebarWidth || 'normal'}
-              onChange={(e) => updateUISetting('sidebarWidth', e.target.value)}
-              className="w-full p-2 border rounded-md mt-1"
-            >
-              <option value="narrow">Narrow</option>
-              <option value="normal">Normal</option>
-              <option value="wide">Wide</option>
-            </select>
-          </div>
         </div>
       </Card>
 
@@ -156,24 +123,6 @@ export function PreferencesForm() {
             </select>
           </div>
 
-          <div>
-            <Label htmlFor="timezone">Timezone</Label>
-            <select
-              id="timezone"
-              value={uiSettingsObj.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone}
-              onChange={(e) => updateUISetting('timezone', e.target.value)}
-              className="w-full p-2 border rounded-md mt-1"
-            >
-              <option value="America/New_York">Eastern Time</option>
-              <option value="America/Chicago">Central Time</option>
-              <option value="America/Denver">Mountain Time</option>
-              <option value="America/Los_Angeles">Pacific Time</option>
-              <option value="Europe/London">London</option>
-              <option value="Europe/Paris">Paris</option>
-              <option value="Asia/Tokyo">Tokyo</option>
-              <option value="Asia/Shanghai">Shanghai</option>
-            </select>
-          </div>
         </div>
       </Card>
 
@@ -192,38 +141,9 @@ export function PreferencesForm() {
           </div>
 
           <div className="space-y-3">
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="autoSave"
-                checked={chatSettingsObj.autoSave !== false}
-                onChange={(e) => updateChatSetting('autoSave', e.target.checked)}
-                className="rounded"
-              />
-              <Label htmlFor="autoSave">Auto-save conversations</Label>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="streamingResponses"
-                checked={chatSettingsObj.streamingResponses !== false}
-                onChange={(e) => updateChatSetting('streamingResponses', e.target.checked)}
-                className="rounded"
-              />
-              <Label htmlFor="streamingResponses">Enable streaming responses</Label>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="showTokenCount"
-                checked={chatSettingsObj.showTokenCount === true}
-                onChange={(e) => updateChatSetting('showTokenCount', e.target.checked)}
-                className="rounded"
-              />
-              <Label htmlFor="showTokenCount">Show token usage</Label>
-            </div>
+            <p className="text-sm text-gray-600">
+              Chat behavior settings are now handled automatically by the application.
+            </p>
           </div>
         </div>
       </Card>

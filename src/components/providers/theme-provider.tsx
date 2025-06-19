@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect } from "react";
-import { useSettingsStore } from "@/lib/stores/settings-store";
+import { useAppStore } from "@/lib/stores/app-store";
 
 interface ThemeProviderProps {
   children: React.ReactNode;
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const { applyTheme } = useSettingsStore();
+  const { applyTheme } = useAppStore();
 
   useEffect(() => {
     // Apply theme on mount

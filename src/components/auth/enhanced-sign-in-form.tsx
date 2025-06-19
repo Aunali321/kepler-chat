@@ -13,8 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { signIn } from "@/lib/auth-client";
-import { useForm } from "@/lib/stores/form-store";
-import { useNotify } from "@/lib/stores/notification-store";
+import { toast } from "@/lib/toast";
 
 const signInSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -31,7 +30,7 @@ export function EnhancedSignInForm() {
   const notify = useNotify();
 
   // Use our new form store
-  const formStore = useForm('sign-in-form');
+  const formStore = (() => ({ form: { isLoading: false, error: null, success: null }, handleSubmit: async (fn: any) => { try { return await fn(); } catch (error) { toast.error('Error', error instanceof Error ? error.message : 'An error occurred'); return null; } } }))('sign-in-form');
   const { form, handleSubmit, setDirty } = formStore;
 
   const callbackUrl = searchParams?.get("callbackUrl") || "/dashboard";

@@ -1,107 +1,96 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth-server';
-import { getUserApiKey, getUserApiKeys, setApiKeyValidationStatus } from '@/lib/db/queries';
+import { withAuthUser } from '@/lib/middleware/auth';
+import { withErrorHandling } from '@/lib/middleware/error';
+import { getUserProvider, getUserProviders, setProviderValidationStatus } from '@/lib/db/queries';
 import { decryptApiKey } from '@/lib/crypto';
 import { ApiKeyValidator } from '@/lib/api-key-validator';
 import type { ProviderType } from '@/lib/db/types';
 
-// POST /api/user/api-keys/validate - Validate all API keys for a user
-export async function GET() {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const apiKeys = await getUserApiKeys(user.id);
-    const validationTasks = apiKeys.map(async (apiKey) => {
-      try {
-        const decryptedKey = decryptApiKey(apiKey.encryptedApiKey);
-        const result = await ApiKeyValidator.validateApiKey(apiKey.provider as ProviderType, decryptedKey);
-        
-        // Update validation status in database
-        await setApiKeyValidationStatus(
-          user.id,
-          apiKey.provider as ProviderType,
-          result.isValid ? 'valid' : 'invalid'
-        );
-
+// GET /api/user/api-keys/validate - Validate all API keys for a user
+async function getHandler(req: Request, user: { id: string; email: string; name?: string }) {
+  const providers = await getUserProviders(user.id);
+  const validationTasks = providers.map(async (provider) => {
+    try {
+      if (!provider.encryptedApiKey) {
         return {
-          provider: apiKey.provider,
-          isValid: result.isValid,
-          error: result.error,
-          responseTime: result.responseTime,
-          lastValidated: new Date().toISOString(),
-        };
-      } catch (error) {
-        console.error(`Failed to validate ${apiKey.provider}:`, error);
-        return {
-          provider: apiKey.provider,
+          provider: provider.provider as ProviderType,
           isValid: false,
-          error: 'Validation failed',
+          error: 'No API key configured',
           lastValidated: new Date().toISOString(),
         };
       }
-    });
 
-    const results = await Promise.all(validationTasks);
-    const summary = ApiKeyValidator.getValidationSummary(results);
+      const decryptedKey = decryptApiKey(provider.encryptedApiKey);
+      const result = await ApiKeyValidator.validateApiKey(provider.provider as ProviderType, decryptedKey);
+      
+      // Update validation status in database
+      await setProviderValidationStatus(
+        user.id,
+        provider.provider as ProviderType,
+        result.isValid ? 'valid' : 'invalid'
+      );
 
-    return NextResponse.json({
-      results,
-      summary,
-    });
-  } catch (error) {
-    console.error('Error validating API keys:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
+      return {
+        provider: provider.provider as ProviderType,
+        isValid: result.isValid,
+        error: result.error,
+        responseTime: result.responseTime,
+        lastValidated: new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error(`Failed to validate ${provider.provider}:`, error);
+      return {
+        provider: provider.provider as ProviderType,
+        isValid: false,
+        error: 'Validation failed',
+        lastValidated: new Date().toISOString(),
+      };
+    }
+  });
+
+  const results = await Promise.all(validationTasks);
+  const summary = ApiKeyValidator.getValidationSummary(results);
+
+  return NextResponse.json({
+    results,
+    summary,
+  });
 }
 
 // POST /api/user/api-keys/validate - Validate a specific API key
-export async function POST(request: NextRequest) {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+async function postHandler(request: NextRequest, user: { id: string; email: string; name?: string }) {
+  const { provider } = await request.json();
 
-    const { provider } = await request.json();
-
-    if (!provider) {
-      return NextResponse.json({ 
-        error: 'Provider is required' 
-      }, { status: 400 });
-    }
-
-    // Get the stored API key
-    const storedKey = await getUserApiKey(user.id, provider);
-    if (!storedKey) {
-      return NextResponse.json({ 
-        error: 'No API key found for this provider' 
-      }, { status: 404 });
-    }
-
-    // Decrypt and validate the API key
-    const apiKey = decryptApiKey(storedKey.encryptedApiKey);
-    const result = await ApiKeyValidator.validateApiKey(provider, apiKey);
-
-    // Update validation status in database
-    await setApiKeyValidationStatus(
-      user.id, 
-      provider, 
-      result.isValid ? 'valid' : 'invalid'
-    );
-
-    return NextResponse.json({
-      provider,
-      isValid: result.isValid,
-      error: result.error,
-      responseTime: result.responseTime,
-      details: result.details,
-      lastValidated: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error('Error validating API key:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  if (!provider) {
+    throw new Error('Provider is required');
   }
+
+  // Get the stored API key
+  const storedProvider = await getUserProvider(user.id, provider);
+  if (!storedProvider || !storedProvider.encryptedApiKey) {
+    throw new Error('No API key found for this provider');
+  }
+
+  // Decrypt and validate the API key
+  const apiKey = decryptApiKey(storedProvider.encryptedApiKey);
+  const result = await ApiKeyValidator.validateApiKey(provider, apiKey);
+
+  // Update validation status in database
+  await setProviderValidationStatus(
+    user.id, 
+    provider, 
+    result.isValid ? 'valid' : 'invalid'
+  );
+
+  return NextResponse.json({
+    provider,
+    isValid: result.isValid,
+    error: result.error,
+    responseTime: result.responseTime,
+    details: result.details,
+    lastValidated: new Date().toISOString(),
+  });
 }
+
+export const GET = withErrorHandling(withAuthUser(getHandler));
+export const POST = withErrorHandling(withAuthUser(postHandler));

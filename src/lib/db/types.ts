@@ -1,25 +1,27 @@
 import { InferSelectModel, InferInsertModel } from 'drizzle-orm';
 import {
-  users,
   chats,
   messages,
   files,
   customTools,
   usageMetrics,
-  sessions,
   chatShares,
-  userPreferences,
-  userApiKeys,
-  userCustomModels,
-  userProviderPreferences
+  userSettings,
+  userProviders
 } from './schema';
 
-// Infer types from Drizzle schema
-export type User = InferSelectModel<typeof users>;
-export type NewUser = InferInsertModel<typeof users>;
-
-export type Session = InferSelectModel<typeof sessions>;
-export type NewSession = InferInsertModel<typeof sessions>;
+// BetterAuth manages user, session, account, and verification tables automatically
+// We define User type based on what BetterAuth provides
+export interface User {
+  id: string;
+  email: string;
+  name?: string;
+  avatarUrl?: string;
+  emailVerified?: boolean;
+  preferences?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
 
 export type Chat = InferSelectModel<typeof chats>;
 export type NewChat = InferInsertModel<typeof chats>;
@@ -39,17 +41,38 @@ export type NewUsageMetric = InferInsertModel<typeof usageMetrics>;
 export type ChatShare = InferSelectModel<typeof chatShares>;
 export type NewChatShare = Omit<InferInsertModel<typeof chatShares>, 'shareToken'> & { shareToken?: string };
 
-export type UserPreferences = InferSelectModel<typeof userPreferences>;
-export type NewUserPreferences = InferInsertModel<typeof userPreferences>;
+// Consolidated user setting types
+export type UserSettings = InferSelectModel<typeof userSettings>;
+export type NewUserSettings = InferInsertModel<typeof userSettings>;
 
-export type UserApiKey = InferSelectModel<typeof userApiKeys>;
-export type NewUserApiKey = InferInsertModel<typeof userApiKeys>;
+export type UserProvider = InferSelectModel<typeof userProviders>;
+export type NewUserProvider = InferInsertModel<typeof userProviders>;
 
-export type UserCustomModel = InferSelectModel<typeof userCustomModels>;
-export type NewUserCustomModel = InferInsertModel<typeof userCustomModels>;
-
-export type UserProviderPreference = InferSelectModel<typeof userProviderPreferences>;
-export type NewUserProviderPreference = InferInsertModel<typeof userProviderPreferences>;
+// Legacy type aliases for backward compatibility during transition
+export type UserPreferences = UserSettings;
+export type NewUserPreferences = NewUserSettings;
+export type UserApiKey = UserProvider;
+export type NewUserApiKey = NewUserProvider;
+export type UserCustomModel = {
+  id: string;
+  modelId: string;
+  displayName: string;
+  description?: string;
+  maxTokens: number;
+  supportsVision: boolean;
+  supportsTools: boolean;
+  supportsAudio: boolean;
+  supportsVideo: boolean;
+  supportsDocument: boolean;
+  costPer1kInputTokens: string;
+  costPer1kOutputTokens: string;
+  isActive: boolean;
+  metadata: any;
+  provider: ProviderType;
+};
+export type NewUserCustomModel = Omit<UserCustomModel, 'id'>;
+export type UserProviderPreference = UserProvider;
+export type NewUserProviderPreference = NewUserProvider;
 
 // Message role enum
 export type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
@@ -101,8 +124,9 @@ export type ChatWithMessages = Chat & {
   messages: Message[];
 };
 
+// Note: User type is managed by BetterAuth, not defined here
 export type ChatWithUser = Chat & {
-  user: User;
+  userId: string;
 };
 
 // Message with related data
@@ -124,11 +148,11 @@ export type SearchResults = {
 export type SharedChatData = {
   share: ChatShare;
   chat: Chat;
-  sharedBy: User;
+  sharedByUserId: string;
 };
 
 // Full chat context for AI SDK
 export type ChatContextWithMessages = Chat & {
   messages: (Message & { files: File[] })[];
-  user: User;
+  userId: string;
 };

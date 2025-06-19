@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useUIStore } from '@/lib/stores/ui-store';
+import { useAppStore } from '@/lib/stores/app-store';
 
 export function DynamicStyles() {
-  const { fontSize, sidebarWidth } = useUIStore();
+  const { ui: { fontSize, sidebarWidth } } = useAppStore();
 
   useEffect(() => {
     if (typeof document === 'undefined') return;

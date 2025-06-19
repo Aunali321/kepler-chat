@@ -37,7 +37,24 @@ async function applySearchMigration() {
     // Add full-text search index for chat titles
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "chats_title_gin_idx" ON "chats" USING gin(to_tsvector('english', title))`);
 
-    console.log('Full-text search migration applied successfully!');
+    // Add additional strategic indexes for Phase 3 optimization
+    console.log('Adding strategic performance indexes...');
+    
+    // Chat lookup optimization (composite indexes)
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "chats_user_updated_desc_idx" ON "chats" (user_id, updated_at DESC)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "chats_user_filters_idx" ON "chats" (user_id, is_archived, is_pinned, updated_at DESC)`);
+    
+    // Message lookup optimization  
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "messages_chat_created_asc_idx" ON "messages" (chat_id, created_at ASC)`);
+    
+    // File lookup optimization
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "files_chat_created_desc_idx" ON "files" (chat_id, created_at DESC)`);
+    
+    // Usage metrics optimization for analytics
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "usage_metrics_user_created_idx" ON "usage_metrics" (user_id, created_at DESC)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "usage_metrics_provider_created_idx" ON "usage_metrics" (provider, created_at DESC)`);
+
+    console.log('Full-text search and performance migration applied successfully!');
   } catch (error) {
     console.error('Error applying migration:', error);
     process.exit(1);
