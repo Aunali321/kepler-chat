@@ -22,8 +22,15 @@ interface ChatContextValue {
 
   // Chat actions
   input: string;
-  handleInputChange: (e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLTextAreaElement>) => void;
-  handleSubmit: (e: React.FormEvent<HTMLFormElement>, chatRequestOptions?: { data?: any }) => void;
+  handleInputChange: (
+    e:
+      | React.ChangeEvent<HTMLInputElement>
+      | React.ChangeEvent<HTMLTextAreaElement>
+  ) => void;
+  handleSubmit: (
+    e: React.FormEvent<HTMLFormElement>,
+    chatRequestOptions?: { data?: any }
+  ) => void;
   reload: () => void;
   stop: () => void;
   setMessages: (messages: AIMessage[]) => void;
@@ -68,19 +75,14 @@ interface ChatProviderProps {
   chatTitle?: string;
 }
 
-export function ChatProvider({ 
-  children, 
-  chatId, 
-  initialMessages = [] 
+export function ChatProvider({
+  children,
+  chatId,
+  initialMessages = [],
 }: ChatProviderProps) {
   // App store (consolidated chat + UI state)
   const {
-    chat: {
-      selectedProvider,
-      selectedModel,
-      systemPrompt,
-      enabledTools,
-    },
+    chat: { selectedProvider, selectedModel, systemPrompt, enabledTools },
     ui: {
       searchDialogOpen,
       exportDialogOpen,
@@ -123,6 +125,10 @@ export function ChatProvider({
       enabledTools,
     },
     initialMessages,
+    // Prevent automatic message submission for existing messages
+    id: chatId || "new-chat", // Unique ID to prevent collision
+    // Configure to send only new messages, not the entire history
+    sendExtraMessageFields: true, // Include IDs to help server identify existing messages
     onError: (error) => {
       console.error("=== CLIENT-SIDE CHAT ERROR ===");
       console.error("Error object:", error);
@@ -150,7 +156,9 @@ export function ChatProvider({
     fetch: async (url, options) => {
       console.log("=== FETCH REQUEST DEBUG ===");
       console.log("URL:", url);
-      console.log("Options:", options);
+      console.log("Options:", JSON.stringify(options, null, 2));
+      console.log("Chat ID:", chatId);
+      console.log("Initial messages count:", initialMessages.length);
 
       const response = await fetch(url, options);
 
@@ -184,7 +192,7 @@ export function ChatProvider({
       chatId: chatId || null,
       messages,
       isLoading,
-      error,
+      error: error || null,
 
       // Provider state
       selectedProvider,
@@ -257,9 +265,7 @@ export function ChatProvider({
   );
 
   return (
-    <ChatContext.Provider value={contextValue}>
-      {children}
-    </ChatContext.Provider>
+    <ChatContext.Provider value={contextValue}>{children}</ChatContext.Provider>
   );
 }
 

@@ -9,6 +9,7 @@ import {
   decimal,
   boolean,
   index,
+  unique,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -178,6 +179,13 @@ export const messages = pgTable(
     // Composite index for optimized chat message queries
     chatCreatedIdx: index("messages_chat_created_idx").on(
       table.chatId,
+      table.createdAt
+    ),
+    // Unique constraint to prevent duplicate messages
+    uniqueMessageIdx: unique("unique_message_per_chat").on(
+      table.chatId,
+      table.role,
+      table.content,
       table.createdAt
     ),
     // Full-text search index will be added via SQL migration
