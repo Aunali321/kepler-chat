@@ -1,7 +1,7 @@
 import { streamText, convertToCoreMessages, type CoreMessage, type Attachment } from 'ai';
 import { z } from 'zod';
 import { requireAuthApi } from '@/lib/auth-server';
-import { providerManager } from '@/lib/provider-manager';
+import { getDefaultModel, getModelInstance, getProviderConfig } from '@/lib/provider-manager';
 import { getAvailableTools, defaultTools, isToolAvailable, type ToolName } from '@/lib/tools';
 import { 
   getChatById, 
@@ -104,8 +104,7 @@ export async function POST(req: Request) {
     // Get enabled tools
     const tools = getAvailableTools(enabledTools.filter(name => isToolAvailable(name)) as ToolName[]);
 
-    // 3. Initialize provider manager
-    await providerManager.initialize(userId);
+    // 3. Provider manager is now stateless - no initialization needed
 
     // 4. Determine model configuration
     let provider: string;
@@ -116,7 +115,7 @@ export async function POST(req: Request) {
       model = requestedModel;
     } else {
       // Use default model if not specified
-      const defaultModel = await providerManager.getDefaultModel(userId);
+      const defaultModel = await getDefaultModel(userId);
       if (!defaultModel) {
         return new Response('No available AI providers. Please configure API keys in settings.', { status: 400 });
       }
@@ -151,10 +150,10 @@ export async function POST(req: Request) {
     }
 
     // 6. Get model instance and configuration
-    const modelInstance = await providerManager.getModelInstance(userId, provider as any, model);
+    const modelInstance = await getModelInstance(userId, provider as any, model);
     
     // Get model configuration from provider manager
-    const providerConfig = await providerManager.getProviderConfig(userId, provider as any);
+    const providerConfig = await getProviderConfig(userId, provider as any);
     if (!providerConfig) {
       return new Response('Provider configuration not found', { status: 400 });
     }

@@ -14,6 +14,7 @@ import { ExportDialog } from "./export-dialog";
 import { ShareDialog } from "./share-dialog";
 import { SettingsDialog } from "@/components/settings/settings-dialog";
 import { Button } from "@/components/ui/button";
+import { ApiErrorBoundary } from "@/components/ui/api-error-boundary";
 import { type ProviderType } from "@/lib/db/types";
 import { defaultTools, type ToolName } from "@/lib/tools";
 import { useChatStore } from "@/lib/stores/chat-store";
@@ -219,9 +220,11 @@ export function ChatInterface({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto">
-        <MessageList messages={messages} isLoading={isLoading} />
-      </div>
+      <ApiErrorBoundary maxRetries={3}>
+        <div className="flex-1 overflow-y-auto">
+          <MessageList messages={messages} isLoading={isLoading} />
+        </div>
+      </ApiErrorBoundary>
 
       {/* Loading indicator */}
       {isLoading && (

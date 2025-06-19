@@ -5,7 +5,7 @@ import {
   updateUserProviderPreference,
   getUserProviderPreferences
 } from '@/lib/db/queries';
-import { providerManager } from '@/lib/provider-manager';
+import { getProviderConfig } from '@/lib/provider-manager';
 import type { ProviderType, ProviderConfig } from '@/lib/db/types';
 
 // GET /api/providers - Get all provider configurations for the current user
@@ -16,8 +16,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Initialize provider manager for this user
-    await providerManager.initialize(user.id);
+    // Provider manager is now stateless - no initialization needed
 
     // Get all supported provider types
     const supportedProviders: ProviderType[] = ['openai', 'anthropic', 'google', 'openrouter'];
@@ -26,7 +25,7 @@ export async function GET() {
     const providerConfigs: Record<ProviderType, ProviderConfig> = {} as any;
 
     for (const providerId of supportedProviders) {
-      const config = await providerManager.getProviderConfig(user.id, providerId);
+      const config = await getProviderConfig(user.id, providerId);
       if (config) {
         providerConfigs[providerId] = config;
       }

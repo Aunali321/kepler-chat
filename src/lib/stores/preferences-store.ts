@@ -7,10 +7,8 @@ export interface PreferencesState {
   isLoading: boolean;
   error: string | null;
   loadPreferences: () => Promise<void>;
+  clearPreferences: () => void;
 }
-
-// Track if preferences are being loaded to prevent duplicate requests
-let isLoadingPreferences = false;
 
 export const usePreferencesStore = create<PreferencesState>()(
   immer((set, get) => ({
@@ -19,12 +17,13 @@ export const usePreferencesStore = create<PreferencesState>()(
     error: null,
 
     loadPreferences: async () => {
+      const currentState = get();
+      
       // Prevent duplicate requests if already loading or already loaded
-      if (isLoadingPreferences || get().preferences) {
+      if (currentState.isLoading || currentState.preferences) {
         return;
       }
 
-      isLoadingPreferences = true;
       set((state) => {
         state.isLoading = true;
         state.error = null;
@@ -48,9 +47,15 @@ export const usePreferencesStore = create<PreferencesState>()(
           state.isLoading = false;
           state.error = error.message;
         });
-      } finally {
-        isLoadingPreferences = false;
       }
+    },
+
+    clearPreferences: () => {
+      set((state) => {
+        state.preferences = null;
+        state.isLoading = false;
+        state.error = null;
+      });
     },
   }))
 );

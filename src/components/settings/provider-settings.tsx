@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CheckCircle, XCircle, AlertCircle, Plus, Key, Settings, Loader2, Eye, EyeOff } from 'lucide-react';
+import { ApiErrorBoundary } from '@/components/ui/api-error-boundary';
 import { useNotificationStore } from '@/lib/stores/notification-store';
 import type { ProviderType, ModelConfig } from '@/lib/db/types';
 
@@ -596,29 +597,33 @@ export function ProviderSettings() {
         </TabsList>
 
         <TabsContent value="enabled" className="space-y-4">
-          {enabledProviders.length > 0 ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {enabledProviders.map((provider) => (
-                <ProviderCard key={provider} provider={provider} />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-4 text-lg font-medium">No Enabled Providers</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Enable providers by adding API keys in the "All Providers" tab.
-              </p>
-            </div>
-          )}
+          <ApiErrorBoundary maxRetries={3}>
+            {enabledProviders.length > 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {enabledProviders.map((provider) => (
+                  <ProviderCard key={provider} provider={provider} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground" />
+                <h3 className="mt-4 text-lg font-medium">No Enabled Providers</h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Enable providers by adding API keys in the "All Providers" tab.
+                </p>
+              </div>
+            )}
+          </ApiErrorBoundary>
         </TabsContent>
 
         <TabsContent value="all" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {allProviders.map((provider) => (
-              <ProviderCard key={provider} provider={provider} />
-            ))}
-          </div>
+          <ApiErrorBoundary maxRetries={3}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {allProviders.map((provider) => (
+                <ProviderCard key={provider} provider={provider} />
+              ))}
+            </div>
+          </ApiErrorBoundary>
         </TabsContent>
       </Tabs>
     </div>

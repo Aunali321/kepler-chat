@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth-server';
+import { withAuthUser } from '@/lib/middleware/auth';
+import { withErrorHandling } from '@/lib/middleware/error';
 import {
   getUserApiKeys,
   getUserApiKey,
@@ -12,12 +13,7 @@ import { encryptApiKey, decryptApiKey, maskApiKey } from '@/lib/crypto';
 import type { ProviderType } from '@/lib/db/types';
 
 // GET /api/user/api-keys - Get all API keys for the current user
-export async function GET() {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+async function getHandler(request: NextRequest, user: { id: string; email: string; name?: string }) {
 
     const apiKeys = await getUserApiKeys(user.id);
 
@@ -30,19 +26,10 @@ export async function GET() {
     }));
 
     return NextResponse.json({ apiKeys: maskedApiKeys });
-  } catch (error) {
-    console.error('Error fetching API keys:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
 }
 
 // POST /api/user/api-keys - Save or update an API key
-export async function POST(request: NextRequest) {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+async function postHandler(request: NextRequest, user: { id: string; email: string; name?: string }) {
 
     const { provider, apiKey, metadata } = await request.json();
 
@@ -100,18 +87,11 @@ export async function POST(request: NextRequest) {
       }
     });
   } catch (error) {
-    console.error('Error saving API key:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
+    throw error;
 }
 
 // DELETE /api/user/api-keys - Delete an API key
-export async function DELETE(request: NextRequest) {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+async function deleteHandler(request: NextRequest, user: { id: string; email: string; name?: string }) {
 
     const { searchParams } = new URL(request.url);
     const provider = searchParams.get('provider') as ProviderType;
@@ -134,8 +114,8 @@ export async function DELETE(request: NextRequest) {
       message: 'API key deleted successfully',
       provider
     });
-  } catch (error) {
-    console.error('Error deleting API key:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
 }
+
+export const GET = withErrorHandling(withAuthUser(getHandler));
+export const POST = withErrorHandling(withAuthUser(postHandler));
+export const DELETE = withErrorHandling(withAuthUser(deleteHandler));
