@@ -16,6 +16,8 @@ export function ProviderCheck({ children }: ProviderCheckProps) {
   // This state will determine if the setup screen should be shown.
   // It's initialized to null to represent an undecided state.
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
+  // Track if user has manually completed onboarding
+  const [onboardingCompleted, setOnboardingCompleted] = useState(false);
 
   // Load providers when user is authenticated
   useEffect(() => {
@@ -30,12 +32,19 @@ export function ProviderCheck({ children }: ProviderCheckProps) {
       const hasEnabledProvider = Object.values(providers).some(
         (p) => p.isEnabled
       );
-      
-      // Always update needsSetup based on current provider state
-      // This ensures onboarding disappears when providers are enabled
-      setNeedsSetup(!hasEnabledProvider);
+
+      // Only auto-determine setup need if onboarding hasn't been manually completed
+      // This prevents automatic exit when first provider is saved
+      if (!onboardingCompleted) {
+        // For initial load, show setup if no providers are enabled
+        if (needsSetup === null) {
+          setNeedsSetup(!hasEnabledProvider);
+        }
+        // Don't automatically exit onboarding just because a provider was added
+        // Let the user explicitly choose to continue or add more providers
+      }
     }
-  }, [user?.id, isLoading, providers]);
+  }, [user?.id, isLoading, providers, needsSetup, onboardingCompleted]);
 
   // While we are deciding or loading, show a loading state.
   if (needsSetup === null || isLoading) {
@@ -50,15 +59,17 @@ export function ProviderCheck({ children }: ProviderCheckProps) {
   }
 
   // If setup is needed, show the component.
-  if (needsSetup) {
+  if (needsSetup && !onboardingCompleted) {
     return (
       <ProviderSetup
         onComplete={() => {
           // User clicked "Continue to Chat", so we no longer need setup.
+          setOnboardingCompleted(true);
           setNeedsSetup(false);
         }}
         onSkip={() => {
           // User clicked "Skip", so we no longer need setup.
+          setOnboardingCompleted(true);
           setNeedsSetup(false);
         }}
       />
