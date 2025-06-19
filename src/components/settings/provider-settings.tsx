@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CheckCircle, XCircle, AlertCircle, Plus, Key, Settings, Loader2, Eye, EyeOff } from 'lucide-react';
 import { ApiErrorBoundary } from '@/components/ui/api-error-boundary';
-import { useNotificationStore } from '@/lib/stores/notification-store';
+import { toast } from '@/lib/toast';
 import type { ProviderType, ModelConfig } from '@/lib/db/types';
 
 // Provider metadata for display
@@ -87,7 +87,6 @@ function ApiKeyDialog({ provider, isOpen, onClose }: ApiKeyDialogProps) {
   const [showApiKey, setShowApiKey] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { saveApiKey } = useProviderStore();
-  const { addNotification } = useNotificationStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,19 +95,11 @@ function ApiKeyDialog({ provider, isOpen, onClose }: ApiKeyDialogProps) {
     setIsSubmitting(true);
     try {
       await saveApiKey(provider, apiKey.trim());
-      addNotification({
-        type: 'success',
-        title: 'API Key Saved',
-        message: `${providerMetadata[provider].name} API key has been saved successfully.`,
-      });
+      toast.success('API Key Saved', `${providerMetadata[provider].name} API key has been saved successfully.`);
       setApiKey('');
       onClose();
     } catch (error) {
-      addNotification({
-        type: 'error',
-        title: 'Save Failed',
-        message: 'Failed to save API key. Please try again.',
-      });
+      toast.error('Save Failed', 'Failed to save API key. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -198,50 +189,13 @@ function CustomModelDialog({ provider, isOpen, onClose }: CustomModelDialogProps
     costPer1kOutputTokens: 0,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { createCustomModel } = useProviderStore();
-  const { addNotification } = useNotificationStore();
+  // Custom model functionality removed in simplified provider store
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.modelId.trim() || !formData.displayName.trim()) return;
-
-    setIsSubmitting(true);
-    try {
-      await createCustomModel({
-        provider,
-        ...formData,
-        modelId: formData.modelId.trim(),
-        displayName: formData.displayName.trim(),
-        description: formData.description.trim() || null,
-      });
-      addNotification({
-        type: 'success',
-        title: 'Model Created',
-        message: `Custom model "${formData.displayName}" has been created.`,
-      });
-      setFormData({
-        modelId: '',
-        displayName: '',
-        description: '',
-        maxTokens: 4096,
-        supportsVision: false,
-        supportsTools: false,
-        supportsAudio: false,
-        supportsVideo: false,
-        supportsDocument: false,
-        costPer1kInputTokens: 0,
-        costPer1kOutputTokens: 0,
-      });
-      onClose();
-    } catch (error) {
-      addNotification({
-        type: 'error',
-        title: 'Creation Failed',
-        message: 'Failed to create custom model. Please try again.',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+    // Custom model functionality has been removed in the simplified provider store
+    toast.info('Feature Disabled', 'Custom model creation has been simplified in this version.');
+    onClose();
   };
 
   return (
@@ -373,8 +327,7 @@ interface ProviderCardProps {
 }
 
 function ProviderCard({ provider }: ProviderCardProps) {
-  const { providers, isValidating, validateApiKey, deleteApiKey, updateProviderSettings } = useProviderStore();
-  const { addNotification } = useNotificationStore();
+  const { providers, isValidating, validateApiKey, deleteApiKey, toggleProvider } = useProviderStore();
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
   const [customModelDialogOpen, setCustomModelDialogOpen] = useState(false);
 
@@ -384,49 +337,27 @@ function ProviderCard({ provider }: ProviderCardProps) {
   const handleValidate = async () => {
     try {
       const isValid = await validateApiKey(provider);
-      addNotification({
-        type: isValid ? 'success' : 'error',
-        title: isValid ? 'API Key Valid' : 'API Key Invalid',
-        message: isValid
-          ? `${metadata.name} API key is working correctly.`
-          : `${metadata.name} API key validation failed.`,
-      });
+      if (isValid) {
+        toast.success('API Key Valid', `${metadata.name} API key is working correctly.`);
+      } else {
+        toast.error('API Key Invalid', `${metadata.name} API key validation failed.`);
+      }
     } catch (error) {
-      addNotification({
-        type: 'error',
-        title: 'Validation Failed',
-        message: 'Could not validate API key. Please try again.',
-      });
+      toast.error('Validation Failed', 'Could not validate API key. Please try again.');
     }
   };
 
   const handleDelete = async () => {
     try {
       await deleteApiKey(provider);
-      addNotification({
-        type: 'info',
-        title: 'API Key Removed',
-        message: `${metadata.name} API key has been removed.`,
-      });
+      toast.success('API Key Removed', `${metadata.name} API key has been removed.`);
     } catch (error) {
-      addNotification({
-        type: 'error',
-        title: 'Removal Failed',
-        message: 'Failed to remove API key. Please try again.',
-      });
+      toast.error('Removal Failed', 'Failed to remove API key. Please try again.');
     }
   };
 
-  const handleToggleEnabled = async (enabled: boolean) => {
-    try {
-      await updateProviderSettings(provider, { isEnabled: enabled });
-    } catch (error) {
-      addNotification({
-        type: 'error',
-        title: 'Update Failed',
-        message: 'Failed to update provider settings.',
-      });
-    }
+  const handleToggleEnabled = (enabled: boolean) => {
+    toggleProvider(provider, enabled);
   };
 
   const getStatusIcon = () => {

@@ -17,8 +17,7 @@ import { Button } from "@/components/ui/button";
 import { ApiErrorBoundary } from "@/components/ui/api-error-boundary";
 import { type ProviderType } from "@/lib/db/types";
 import { defaultTools, type ToolName } from "@/lib/tools";
-import { useChatStore } from "@/lib/stores/chat-store";
-import { useUIStore } from "@/lib/stores/ui-store";
+import { useAppStore } from "@/lib/stores/app-store";
 
 interface ChatInterfaceProps {
   chatId?: string;
@@ -33,26 +32,26 @@ export function ChatInterface({
 }: ChatInterfaceProps) {
   const router = useRouter();
 
-  // Chat store
+  // App store (consolidated chat + UI state)
   const {
-    selectedProvider,
-    selectedModel,
-    systemPrompt,
-    enabledTools,
+    chat: {
+      selectedProvider,
+      selectedModel,
+      systemPrompt,
+      enabledTools,
+    },
+    ui: {
+      searchDialogOpen,
+      exportDialogOpen,
+      shareDialogOpen,
+      settingsDialogOpen,
+    },
     setProvider,
     setModel,
     setSystemPrompt,
     setEnabledTools,
     setCurrentChatId,
     setIsGenerating,
-  } = useChatStore();
-
-  // UI store for dialog states
-  const {
-    searchDialogOpen,
-    exportDialogOpen,
-    shareDialogOpen,
-    settingsDialogOpen,
     openSearchDialog,
     closeSearchDialog,
     openExportDialog,
@@ -60,7 +59,7 @@ export function ChatInterface({
     openShareDialog,
     closeShareDialog,
     closeSettingsDialog,
-  } = useUIStore();
+  } = useAppStore();
 
   const {
     messages,

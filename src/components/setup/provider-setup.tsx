@@ -21,7 +21,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useProviderStore } from "@/lib/stores/provider-store";
-import { useNotificationStore } from "@/lib/stores/notification-store";
+import { toast } from "@/lib/toast";
 import type { ProviderType } from "@/lib/db/types";
 
 interface ProviderSetupProps {
@@ -87,7 +87,6 @@ export function ProviderSetup({ onComplete, onSkip }: ProviderSetupProps) {
 
   const { saveApiKey, updateProviderSettings, loadProviders } =
     useProviderStore();
-  const { addNotification } = useNotificationStore();
 
   const handleApiKeyChange = (provider: OnboardingProvider, value: string) => {
     setApiKeys((prev) => ({ ...prev, [provider]: value }));
@@ -117,11 +116,10 @@ export function ProviderSetup({ onComplete, onSkip }: ProviderSetupProps) {
       // Add to saved providers set
       setSavedProviders((prev) => new Set([...prev, provider]));
 
-      addNotification({
-        type: "success",
-        title: `${providerDetails[provider].name} Configured!`,
-        description: `Your API key has been saved successfully.`,
-      });
+      toast.success(
+        `${providerDetails[provider].name} Configured!`,
+        `Your API key has been saved successfully.`
+      );
 
       // Don't call onComplete here - let user add more providers
     } catch (error) {
@@ -131,11 +129,10 @@ export function ProviderSetup({ onComplete, onSkip }: ProviderSetupProps) {
         [provider]:
           "Failed to validate API key. Please check your key and try again.",
       }));
-      addNotification({
-        type: "error",
-        title: "Setup Failed",
-        description: `There was an error configuring ${providerDetails[provider].name}. Please try again.`,
-      });
+      toast.error(
+        "Setup Failed",
+        `There was an error configuring ${providerDetails[provider].name}. Please try again.`
+      );
     } finally {
       setIsSubmitting(null);
     }

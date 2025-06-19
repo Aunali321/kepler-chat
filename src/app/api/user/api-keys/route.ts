@@ -14,7 +14,7 @@ import type { ProviderType } from '@/lib/db/types';
 
 // GET /api/user/api-keys - Get all API keys for the current user
 async function getHandler(request: NextRequest, user: { id: string; email: string; name?: string }) {
-
+  try {
     const apiKeys = await getUserApiKeys(user.id);
 
     // Return masked API keys for security
@@ -26,11 +26,14 @@ async function getHandler(request: NextRequest, user: { id: string; email: strin
     }));
 
     return NextResponse.json({ apiKeys: maskedApiKeys });
+  } catch (error) {
+    throw error;
+  }
 }
 
 // POST /api/user/api-keys - Save or update an API key
 async function postHandler(request: NextRequest, user: { id: string; email: string; name?: string }) {
-
+  try {
     const { provider, apiKey, metadata } = await request.json();
 
     if (!provider || !apiKey) {
@@ -88,11 +91,12 @@ async function postHandler(request: NextRequest, user: { id: string; email: stri
     });
   } catch (error) {
     throw error;
+  }
 }
 
 // DELETE /api/user/api-keys - Delete an API key
 async function deleteHandler(request: NextRequest, user: { id: string; email: string; name?: string }) {
-
+  try {
     const { searchParams } = new URL(request.url);
     const provider = searchParams.get('provider') as ProviderType;
 
@@ -114,6 +118,9 @@ async function deleteHandler(request: NextRequest, user: { id: string; email: st
       message: 'API key deleted successfully',
       provider
     });
+  } catch (error) {
+    throw error;
+  }
 }
 
 export const GET = withErrorHandling(withAuthUser(getHandler));

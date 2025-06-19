@@ -1,12 +1,11 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Download, FileText, Code, FileImage, Check } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { useForm } from '@/lib/stores/form-store';
-import { useNotify } from '@/lib/stores/notification-store';
+import { useState } from "react";
+import { Download, FileText, Code, FileImage, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { toast } from "@/lib/toast";
 
 interface ExportDialogProps {
   isOpen: boolean;
@@ -15,38 +14,44 @@ interface ExportDialogProps {
   chatTitle: string;
 }
 
-export function ExportDialog({ isOpen, onClose, chatId, chatTitle }: ExportDialogProps) {
-  const [selectedFormat, setSelectedFormat] = useState<'json' | 'markdown' | 'pdf'>('markdown');
+export function ExportDialog({
+  isOpen,
+  onClose,
+  chatId,
+  chatTitle,
+}: ExportDialogProps) {
+  const [selectedFormat, setSelectedFormat] = useState<
+    "json" | "markdown" | "pdf"
+  >("markdown");
   const [includeFiles, setIncludeFiles] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
 
-  // Use form store for loading/error states
-  const { form: formState, handleSubmit } = useForm('export-dialog');
-  const notify = useNotify();
+  const [isLoading, setIsLoading] = useState(false);
 
   const exportFormats = [
     {
-      id: 'markdown' as const,
-      name: 'Markdown',
-      description: 'Human-readable format, perfect for sharing and documentation',
+      id: "markdown" as const,
+      name: "Markdown",
+      description:
+        "Human-readable format, perfect for sharing and documentation",
       icon: FileText,
-      extension: '.md',
+      extension: ".md",
       recommended: true,
     },
     {
-      id: 'json' as const,
-      name: 'JSON',
-      description: 'Machine-readable format with full metadata and structure',
+      id: "json" as const,
+      name: "JSON",
+      description: "Machine-readable format with full metadata and structure",
       icon: Code,
-      extension: '.json',
+      extension: ".json",
       recommended: false,
     },
     {
-      id: 'pdf' as const,
-      name: 'PDF',
-      description: 'Professional document format (coming soon)',
+      id: "pdf" as const,
+      name: "PDF",
+      description: "Professional document format (coming soon)",
       icon: FileImage,
-      extension: '.pdf',
+      extension: ".pdf",
       recommended: false,
       disabled: true,
     },
@@ -54,13 +59,13 @@ export function ExportDialog({ isOpen, onClose, chatId, chatTitle }: ExportDialo
 
   const handleExport = async () => {
     try {
-      // Using form store instead(true);
+      setIsLoading(true);
       setExportSuccess(false);
 
-      const response = await fetch('/api/chat/export', {
-        method: 'POST',
+      const response = await fetch("/api/chat/export", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           chatId,
@@ -71,7 +76,7 @@ export function ExportDialog({ isOpen, onClose, chatId, chatTitle }: ExportDialo
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Export failed');
+        throw new Error(error.error || "Export failed");
       }
 
       // Get the blob data
@@ -79,11 +84,11 @@ export function ExportDialog({ isOpen, onClose, chatId, chatTitle }: ExportDialo
 
       // Create download link
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
 
       // Get filename from response headers or generate one
-      const contentDisposition = response.headers.get('Content-Disposition');
+      const contentDisposition = response.headers.get("Content-Disposition");
       let filename = `chat-export-${Date.now()}`;
 
       if (contentDisposition) {
@@ -92,8 +97,8 @@ export function ExportDialog({ isOpen, onClose, chatId, chatTitle }: ExportDialo
           filename = filenameMatch[1];
         }
       } else {
-        const format = exportFormats.find(f => f.id === selectedFormat);
-        filename += format?.extension || '';
+        const format = exportFormats.find((f) => f.id === selectedFormat);
+        filename += format?.extension || "";
       }
 
       a.download = filename;
@@ -110,10 +115,13 @@ export function ExportDialog({ isOpen, onClose, chatId, chatTitle }: ExportDialo
         onClose();
       }, 2000);
     } catch (error) {
-      console.error('Export error:', error);
-      alert(error instanceof Error ? error.message : 'Export failed');
+      console.error("Export error:", error);
+      toast.error(
+        "Export Failed",
+        error instanceof Error ? error.message : "Export failed"
+      );
     } finally {
-      // Using form store instead(false);
+      setIsLoading(false);
     }
   };
 
@@ -132,7 +140,7 @@ export function ExportDialog({ isOpen, onClose, chatId, chatTitle }: ExportDialo
               </h2>
               <p className="text-sm text-gray-500 mt-1">{chatTitle}</p>
             </div>
-            <Button variant="outline" onClick={onClose} disabled={formState.isLoading}>
+            <Button variant="outline" onClick={onClose} disabled={isLoading}>
               Close
             </Button>
           </div>
@@ -147,11 +155,14 @@ export function ExportDialog({ isOpen, onClose, chatId, chatTitle }: ExportDialo
               {exportFormats.map((format) => (
                 <Card
                   key={format.id}
-                  className={`p-4 cursor-pointer transition-all border-2 ${selectedFormat === format.id
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
-                    } ${format.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  onClick={() => !format.disabled && setSelectedFormat(format.id)}
+                  className={`p-4 cursor-pointer transition-all border-2 ${
+                    selectedFormat === format.id
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                      : "border-gray-200 dark:border-gray-700 hover:border-gray-300"
+                  } ${format.disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                  onClick={() =>
+                    !format.disabled && setSelectedFormat(format.id)
+                  }
                 >
                   <div className="flex items-start space-x-3">
                     <format.icon className="w-5 h-5 mt-0.5 text-gray-600 dark:text-gray-400" />
@@ -195,7 +206,7 @@ export function ExportDialog({ isOpen, onClose, chatId, chatTitle }: ExportDialo
                   checked={includeFiles}
                   onChange={(e) => setIncludeFiles(e.target.checked)}
                   className="rounded"
-                  disabled={formState.isLoading}
+                  disabled={isLoading}
                 />
                 <Label htmlFor="includeFiles" className="text-sm">
                   Include file attachments metadata
@@ -219,15 +230,18 @@ export function ExportDialog({ isOpen, onClose, chatId, chatTitle }: ExportDialo
 
         {/* Footer */}
         <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
-          <Button variant="outline" onClick={onClose} disabled={formState.isLoading}>
+          <Button variant="outline" onClick={onClose} disabled={isLoading}>
             Cancel
           </Button>
           <Button
             onClick={handleExport}
-            disabled={formState.isLoading || exportFormats.find(f => f.id === selectedFormat)?.disabled}
+            disabled={
+              isLoading ||
+              exportFormats.find((f) => f.id === selectedFormat)?.disabled
+            }
             className="min-w-[120px]"
           >
-            {formState.isLoading ? (
+            {isLoading ? (
               <div className="flex items-center space-x-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                 <span>Exporting...</span>

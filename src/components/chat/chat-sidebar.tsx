@@ -7,7 +7,7 @@ import { Search, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createNewChat } from "@/app/actions";
-import { useUIStore } from "@/lib/stores/ui-store";
+import { useAppStore } from "@/lib/stores/app-store";
 import { cn } from "@/lib/utils";
 import type { Chat } from "@/lib/db/types";
 
@@ -18,7 +18,7 @@ interface ChatSidebarProps {
 
 export function ChatSidebar({ selectedChatId, className }: ChatSidebarProps) {
   const router = useRouter();
-  const { openSettingsDialog } = useUIStore();
+  const { openSettingsDialog } = useAppStore();
   const [chats, setChats] = useState<Chat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");

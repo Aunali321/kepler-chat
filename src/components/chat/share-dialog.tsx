@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { Share2, Copy, Check, Link } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useForm } from "@/lib/stores/form-store";
-import { useNotify } from "@/lib/stores/notification-store";
+import { toast } from "@/lib/toast";
 
 interface ShareDialogProps {
   isOpen: boolean;
@@ -22,11 +21,11 @@ export function ShareDialog({
 }: ShareDialogProps) {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
-  const { form: formState, handleSubmit } = useForm("share-dialog");
-  const notify = useNotify();
+  const [isLoading, setIsLoading] = useState(false);
 
   const createShareLink = async () => {
-    const result = await handleSubmit(async () => {
+    try {
+      setIsLoading(true);
       const response = await fetch("/api/chat/share", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -37,13 +36,18 @@ export function ShareDialog({
         const error = await response.json();
         throw new Error(error.error || "Failed to create share link");
       }
-      return await response.json();
-    });
-
-    if (result && result.share?.shareToken) {
-      const url = `${window.location.origin}/shared/${result.share.shareToken}`;
-      setShareUrl(url);
-      copyToClipboard(url);
+      
+      const result = await response.json();
+      if (result && result.share?.shareToken) {
+        const url = `${window.location.origin}/shared/${result.share.shareToken}`;
+        setShareUrl(url);
+        copyToClipboard(url);
+      }
+    } catch (error) {
+      console.error('Share creation error:', error);
+      toast.error('Share Failed', error instanceof Error ? error.message : 'Failed to create share link');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -51,10 +55,10 @@ export function ShareDialog({
     try {
       await navigator.clipboard.writeText(url);
       setIsCopied(true);
-      notify.success("Share link copied to clipboard!");
+      toast.success("Share link copied to clipboard!");
       setTimeout(() => setIsCopied(false), 2000);
     } catch (error) {
-      notify.error("Failed to copy link.");
+      toast.error("Failed to copy link.");
     }
   };
 
@@ -117,11 +121,11 @@ export function ShareDialog({
               </p>
               <Button
                 onClick={createShareLink}
-                disabled={formState.isLoading}
+                disabled={isLoading}
                 className="w-full"
               >
                 <Link className="w-4 h-4 mr-2" />
-                {formState.isLoading
+                {isLoading
                   ? "Generating Link..."
                   : "Generate Share Link"}
               </Button>

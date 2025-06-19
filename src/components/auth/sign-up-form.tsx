@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useForm as useReactHookForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,8 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { PasswordInput } from "@/components/ui/password-input";
 import { Input } from "@/components/ui/input";
 import { signUp } from "@/lib/auth-client";
-import { useForm } from "@/lib/stores/form-store";
-// import { useNotify } from "@/lib/stores/notification-store";
+import { toast } from "@/lib/toast";
 
 const signUpSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(50, "Name must be less than 50 characters"),
@@ -33,12 +33,7 @@ type SignUpFormData = z.infer<typeof signUpSchema>;
 
 export function SignUpForm() {
   const router = useRouter();
-  // Notification store available for future use
-  // const notify = useNotify();
-  
-  // Use our new form store
-  const formStore = useForm('sign-up-form');
-  const { form: formState, handleSubmit, setDirty } = formStore;
+  const [isLoading, setIsLoading] = useState(false);
 
   const reactHookForm = useReactHookForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
@@ -50,56 +45,34 @@ export function SignUpForm() {
     },
   });
 
-  // Mark form as dirty when values change
-  reactHookForm.watch(() => {
-    if (!formState.isDirty) {
-      setDirty(true);
-    }
-  });
-
   const onSubmit = async (values: SignUpFormData) => {
-    const result = await handleSubmit(
-      async () => {
-        const signUpResult = await signUp.email({
-          email: values.email,
-          password: values.password,
-          name: values.name,
-        });
+    try {
+      setIsLoading(true);
+      const signUpResult = await signUp.email({
+        email: values.email,
+        password: values.password,
+        name: values.name,
+      });
 
-        if (signUpResult.error) {
-          throw new Error(signUpResult.error.message || "Failed to create account");
-        }
-
-        return signUpResult;
-      },
-      {
-        successMessage: "Account created successfully! Redirecting...",
-        showNotifications: true,
+      if (signUpResult.error) {
+        throw new Error(signUpResult.error.message || "Failed to create account");
       }
-    );
 
-    if (result) {
+      toast.success("Account created successfully! Redirecting...");
+      
       // Redirect to dashboard on successful registration
       router.push("/dashboard");
+    } catch (error) {
+      console.error('Sign up error:', error);
+      toast.error('Account Creation Failed', error instanceof Error ? error.message : 'Failed to create account');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <Form {...reactHookForm}>
       <form onSubmit={reactHookForm.handleSubmit(onSubmit)} className="space-y-4">
-        {/* Enhanced error display using form store */}
-        {formState.error && (
-          <div className="rounded-md bg-red-50 border border-red-200 p-3">
-            <div className="text-sm text-red-700">{formState.error}</div>
-          </div>
-        )}
-
-        {/* Enhanced success display using form store */}
-        {formState.success && (
-          <div className="rounded-md bg-green-50 border border-green-200 p-3">
-            <div className="text-sm text-green-700">{formState.success}</div>
-          </div>
-        )}
 
         <FormField
           control={reactHookForm.control}
@@ -111,7 +84,7 @@ export function SignUpForm() {
                 <Input
                   placeholder="Enter your full name"
                   autoComplete="name"
-                  disabled={formState.isLoading}
+                  disabled={isLoading}
                   {...field}
                 />
               </FormControl>
@@ -131,7 +104,7 @@ export function SignUpForm() {
                   type="email"
                   placeholder="Enter your email"
                   autoComplete="email"
-                  disabled={formState.isLoading}
+                  disabled={isLoading}
                   {...field}
                 />
               </FormControl>
@@ -152,7 +125,7 @@ export function SignUpForm() {
                   fieldId="signup-password"
                   placeholder="Create a password"
                   autoComplete="new-password"
-                  disabled={formState.isLoading}
+                  disabled={isLoading}
                   strengthIndicator
                 />
               </FormControl>
@@ -173,7 +146,7 @@ export function SignUpForm() {
                   fieldId="signup-confirm-password"
                   placeholder="Confirm your password"
                   autoComplete="new-password"
-                  disabled={formState.isLoading}
+                  disabled={isLoading}
                 />
               </FormControl>
               <FormMessage />
@@ -181,8 +154,8 @@ export function SignUpForm() {
           )}
         />
 
-        <Button type="submit" className="w-full" disabled={formState.isLoading}>
-          {formState.isLoading ? (
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Creating account...
