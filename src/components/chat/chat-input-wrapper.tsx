@@ -36,13 +36,10 @@ export function ChatInputWrapper() {
     // Clear any previous error
     setShowModelError(false);
 
-    // Convert experimental_attachments to data format for context
-    const chatRequestOptions = options?.experimental_attachments
-      ? { data: { experimental_attachments: options.experimental_attachments } }
-      : undefined;
-
-    // Proceed with normal submission
-    handleSubmit(e, chatRequestOptions);
+    // Proceed with normal submission, passing attachments directly
+    handleSubmit(e, {
+      experimental_attachments: options?.experimental_attachments || [],
+    });
   };
 
   return (

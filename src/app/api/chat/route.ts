@@ -39,33 +39,13 @@ async function getHandler(
 
 // Request validation schema
 const ChatRequestSchema = z.object({
-  messages: z.array(
-    z.object({
-      id: z.string().optional(),
-      role: z.enum(["user", "assistant", "system", "tool"]),
-      content: z.union([
-        z.string(),
-        z.array(
-          z.object({
-            type: z.string(),
-            text: z.string().optional(),
-            image: z.string().optional(),
-          })
-        ),
-      ]),
-      toolInvocations: z.array(z.any()).optional(),
-      experimental_attachments: z
-        .array(
-          z.object({
-            name: z.string().optional(),
-            contentType: z.string().optional(),
-            url: z.string(),
-          })
-        )
-        .optional(),
-    })
-  ),
-  chatId: z.string().optional(),
+  id: z.string().optional(),
+  message: z.object({
+    id: z.string(),
+    role: z.enum(["user", "assistant", "system"]),
+    content: z.union([z.string(), z.array(z.any())]),
+    experimental_attachments: z.array(z.any()).optional(),
+  }),
   provider: z.string().optional(),
   model: z.string().optional(),
   systemPrompt: z.string().optional(),
@@ -78,7 +58,7 @@ async function postHandler(
 ) {
   const userId = user.id;
 
-  // 2. Parse and validate request
+  // Parse and validate request
   const body = await req.json();
   console.log("=== CHAT API DEBUG ===");
   console.log("Received body:", JSON.stringify(body, null, 2));
@@ -91,20 +71,21 @@ async function postHandler(
   }
 
   const {
-    messages,
-    chatId,
+    id: chatId,
+    message,
     provider: requestedProvider,
     model: requestedModel,
     systemPrompt,
     enabledTools = defaultTools,
   } = parseResult.data;
 
-  console.log("📥 Messages received:", messages.length);
+  console.log("📥 New message received:", message);
   console.log(
-    "📎 Messages with attachments:",
-    messages.filter(
-      (m) => m.experimental_attachments && m.experimental_attachments.length > 0
-    ).length
+    "📎 Has attachments:",
+    !!(
+      message.experimental_attachments &&
+      message.experimental_attachments.length > 0
+    )
   );
 
   // Get enabled tools
@@ -112,9 +93,7 @@ async function postHandler(
     enabledTools.filter((name) => isToolAvailable(name)) as ToolName[]
   );
 
-  // 3. Provider system is now stateless - no initialization needed
-
-  // 4. Determine model configuration
+  // Determine model configuration
   let provider: string;
   let model: string;
 
@@ -133,7 +112,7 @@ async function postHandler(
     model = defaultModel.modelId;
   }
 
-  // 5. Get or create chat
+  // Get or create chat
   let chat;
   let chatHistory: any[] = [];
 
@@ -159,7 +138,7 @@ async function postHandler(
     });
   }
 
-  // 6. Get model instance and configuration
+  // Get model instance and configuration
   const modelInstance = await getModelForChat(userId, provider as any, model);
 
   // Get model configuration from provider config
@@ -177,8 +156,8 @@ async function postHandler(
     throw new Error("Model configuration not found");
   }
 
-  // 7. Prepare messages for the AI model
-  // Convert chat history to Message format (filter valid roles)
+  // Prepare messages for the AI model
+  // Convert chat history to Message format
   const historyMessages = chatHistory
     .filter((msg) => ["user", "assistant", "system"].includes(msg.role))
     .map((msg) => ({
@@ -187,98 +166,44 @@ async function postHandler(
       content: msg.content || "",
     }));
 
-  // Process current messages with attachments
-  const processedMessages = messages
-    .filter((msg) => ["user", "assistant", "system"].includes(msg.role))
-    .map((msg) => {
-      // If message has attachments, check model support but pass through as-is
-      if (
-        msg.experimental_attachments &&
-        msg.experimental_attachments.length > 0
-      ) {
-        // Check for audio attachments and model support
-        const audioAttachments = msg.experimental_attachments.filter((att) =>
-          att.contentType?.startsWith("audio/")
+  // Process the new message
+  let processedMessage = {
+    id: message.id,
+    role: message.role as "user" | "assistant" | "system",
+    content:
+      typeof message.content === "string"
+        ? message.content
+        : JSON.stringify(message.content),
+    experimental_attachments: message.experimental_attachments,
+  };
+
+  // Handle attachments if present
+  if (
+    message.experimental_attachments &&
+    message.experimental_attachments.length > 0
+  ) {
+    const documentAttachments = message.experimental_attachments.filter(
+      (att) => att.contentType && att.contentType.startsWith("application/")
+    );
+
+    if (documentAttachments.length > 0) {
+      const supportsDocument = modelConfig.supportsDocument;
+      if (!supportsDocument) {
+        throw new Error(
+          `Document input is not supported by ${provider}/${model}. Only Gemini models support direct document processing.`
         );
-
-        if (audioAttachments.length > 0) {
-          const supportsAudio = modelConfig.supportsAudio;
-          if (!supportsAudio) {
-            throw new Error(
-              `Audio input is not supported by ${provider}/${model}. Only Gemini 2.5 Flash and Gemini 2.5 Pro support direct audio processing.`
-            );
-          }
-        }
-
-        // Check for video attachments and model support
-        const videoAttachments = msg.experimental_attachments.filter((att) =>
-          att.contentType?.startsWith("video/")
-        );
-
-        if (videoAttachments.length > 0) {
-          const supportsVideo = modelConfig.supportsVideo;
-          if (!supportsVideo) {
-            throw new Error(
-              `Video input is not supported by ${provider}/${model}. Only Gemini models support direct video processing.`
-            );
-          }
-        }
-
-        // Check for document attachments and model support
-        const documentAttachments = msg.experimental_attachments.filter(
-          (att) =>
-            att.contentType === "application/pdf" ||
-            att.contentType?.startsWith("text/") ||
-            att.contentType === "application/json"
-        );
-
-        if (documentAttachments.length > 0) {
-          const supportsDocument = modelConfig.supportsDocument;
-          if (!supportsDocument) {
-            throw new Error(
-              `Document input is not supported by ${provider}/${model}. Only Gemini models support direct document processing.`
-            );
-          }
-        }
-
-        // Return the message with experimental_attachments - let convertToCoreMessages handle the conversion
-        return {
-          id: msg.id,
-          role: msg.role as "user" | "assistant" | "system",
-          content:
-            typeof msg.content === "string"
-              ? msg.content
-              : JSON.stringify(msg.content),
-          experimental_attachments: msg.experimental_attachments,
-        };
-      } else {
-        // No attachments, use content as-is
-        return {
-          id: msg.id,
-          role: msg.role as "user" | "assistant" | "system",
-          content:
-            typeof msg.content === "string"
-              ? msg.content
-              : JSON.stringify(msg.content),
-        };
       }
-    });
+    }
+  }
 
-  // Combine and convert to CoreMessages
-  const allMessages = [...historyMessages, ...processedMessages];
-  console.log(
-    "🔄 All messages before convertToCoreMessages:",
-    allMessages.map((m) => ({
-      role: m.role,
-      hasAttachments: !!(m as any).experimental_attachments?.length,
-      attachmentCount: (m as any).experimental_attachments?.length || 0,
-    }))
-  );
+  // Combine all messages
+  const allMessages = [...historyMessages, processedMessage];
+  console.log("🔄 All messages for AI:", allMessages.length);
 
   const coreMessages: CoreMessage[] = convertToCoreMessages(allMessages as any);
   console.log("✅ Converted to core messages:", coreMessages.length);
 
-  // 8. Add system prompt if provided
+  // Add system prompt if provided
   const modelConfigData = chat.modelConfig as any;
   let systemMessage = systemPrompt || modelConfigData?.systemPrompt;
 
@@ -299,7 +224,6 @@ Do not apologize for not knowing information if a tool is available to find it.
 
   if (systemMessage) {
     console.log("ℹ️  Using system message:", systemMessage);
-    // Add it to the beginning of the messages array if it exists
     if (!coreMessages.some((m) => m.role === "system")) {
       coreMessages.unshift({
         role: "system",
@@ -308,57 +232,35 @@ Do not apologize for not knowing information if a tool is available to find it.
     }
   }
 
-  // 9. Save user message(s) to database
-  // Filter out messages that already exist in the database
-  const newUserMessages = [];
-  const existingMessageIds = new Set(chatHistory.map((msg) => msg.id));
-
-  for (const message of messages.filter((m) => m.role === "user")) {
-    // Skip saving if message already has an ID (already exists in database)
-    if (message.id) {
-      // Double-check: if the message ID exists in our chat history, skip it
-      if (existingMessageIds.has(message.id)) {
-        console.log("🔄 Skipping save for existing message:", message.id);
-        continue;
+  // Save the new user message to database
+  const metadata = message.experimental_attachments
+    ? {
+        experimental_attachments: message.experimental_attachments,
       }
-    }
+    : {};
 
-    // This is a new message that needs to be saved
-    newUserMessages.push(message);
-  }
+  await createMessage({
+    chatId: chat.id,
+    role: message.role,
+    content:
+      typeof message.content === "string"
+        ? message.content
+        : JSON.stringify(message.content),
+    parts: typeof message.content === "string" ? [] : message.content,
+    provider,
+    model,
+    ...(Object.keys(metadata).length > 0 && { metadata }),
+  });
 
-  // Only save genuinely new user messages
-  for (const message of newUserMessages) {
-    // Create metadata object with experimental_attachments if present
-    const metadata = message.experimental_attachments
-      ? {
-          experimental_attachments: message.experimental_attachments,
-        }
-      : {};
+  console.log("💾 Saved new user message to database");
 
-    await createMessage({
-      chatId: chat.id,
-      role: message.role,
-      content:
-        typeof message.content === "string"
-          ? message.content
-          : JSON.stringify(message.content),
-      parts: typeof message.content === "string" ? [] : message.content,
-      provider,
-      model,
-      ...(Object.keys(metadata).length > 0 && { metadata }),
-    });
-
-    console.log("💾 Saved new user message to database");
-  }
-
-  // 11. Stream AI response
+  // Stream AI response
   const result = await streamText({
     model: modelInstance,
     messages: coreMessages,
     system: systemMessage,
     tools: Object.keys(tools).length > 0 ? tools : undefined,
-    maxSteps: 3, // Enable multi-step reasoning
+    maxSteps: 3,
 
     onFinish: async ({ text, usage, finishReason, toolCalls }) => {
       try {
@@ -413,7 +315,6 @@ Do not apologize for not knowing information if a tool is available to find it.
     },
   });
 
-  // 12. Return streaming response
   return result.toDataStreamResponse();
 }
 

@@ -181,13 +181,7 @@ export const messages = pgTable(
       table.chatId,
       table.createdAt
     ),
-    // Unique constraint to prevent duplicate messages
-    uniqueMessageIdx: unique("unique_message_per_chat").on(
-      table.chatId,
-      table.role,
-      table.content,
-      table.createdAt
-    ),
+
     // Full-text search index will be added via SQL migration
   })
 );

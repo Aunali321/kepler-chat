@@ -163,43 +163,6 @@ export async function getMessageById(
 }
 
 export async function createMessage(data: NewMessage) {
-  // If an ID is provided, check if message already exists
-  if (data.id) {
-    const existingMessage = await getMessageById(data.id);
-    if (existingMessage) {
-      console.log("🔄 Message already exists, skipping creation:", data.id);
-      return existingMessage;
-    }
-  }
-
-  // Also check for content-based duplicates to be extra safe
-  // Look for messages with same chat_id, role, content within last 5 minutes
-  if (data.content && data.content.trim()) {
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-
-    const existingByContent = await db
-      .select()
-      .from(messages)
-      .where(
-        and(
-          eq(messages.chatId, data.chatId),
-          eq(messages.role, data.role),
-          eq(messages.content, data.content),
-          gte(messages.createdAt, fiveMinutesAgo)
-        )
-      )
-      .limit(1);
-
-    if (existingByContent.length > 0) {
-      console.log("🔄 Duplicate message content detected, skipping creation:", {
-        chatId: data.chatId,
-        role: data.role,
-        contentPreview: data.content.substring(0, 50) + "...",
-      });
-      return existingByContent[0];
-    }
-  }
-
   const [message] = await db.insert(messages).values(data).returning();
 
   // Update chat's updatedAt timestamp

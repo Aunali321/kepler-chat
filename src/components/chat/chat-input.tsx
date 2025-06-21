@@ -204,48 +204,39 @@ export const ChatInput = memo(function ChatInput({
   };
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    console.log("🚀 onSubmit called");
+    console.log("📋 Current uploadedAttachments:", uploadedAttachments);
+    console.log("⌨️ Current input:", input);
+
     e.preventDefault();
 
-    console.log("=== CHAT INPUT onSubmit DEBUG ===");
-    console.log("isUploading:", isUploading);
-    console.log("input.trim():", input.trim());
-    console.log("uploadedAttachments:", uploadedAttachments);
-    console.log("uploadedAttachments.length:", uploadedAttachments.length);
-    console.log("Current form event:", e.type);
-
-    // Don't submit if still uploading
-    if (isUploading) {
-      console.log("❌ Blocked: Still uploading");
+    if (
+      (!input.trim() && uploadedAttachments.length === 0) ||
+      isLoading ||
+      isUploading
+    ) {
+      console.log("❌ Submission blocked", {
+        hasInput: !!input.trim(),
+        hasAttachments: uploadedAttachments.length > 0,
+        isLoading,
+        isUploading,
+      });
       return;
     }
 
-    if (input.trim() || uploadedAttachments.length > 0) {
-      console.log(
-        "✅ Submitting with uploadedAttachments:",
-        uploadedAttachments
-      );
+    console.log("✅ Submitting with attachments:", uploadedAttachments);
 
-      // Call handleSubmit with proper options object
-      const submitOptions =
-        uploadedAttachments.length > 0
-          ? {
-              experimental_attachments: uploadedAttachments,
-            }
-          : undefined;
+    // Submit with attachments
+    handleSubmit(e, {
+      experimental_attachments: uploadedAttachments,
+    });
 
-      console.log("📤 Final submit options:", submitOptions);
-      handleSubmit(e, submitOptions);
+    // Clear state after submission
+    setUploadedAttachments([]);
+    setFiles(undefined);
+    setUploadError(null);
 
-      // Clear files after sending
-      console.log("🧹 Clearing files after submit");
-      setFiles(undefined);
-      setUploadedAttachments([]);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    } else {
-      console.log("❌ Blocked: No input and no attachments");
-    }
+    console.log("🧹 Cleared attachments after submission");
   };
 
   return (
