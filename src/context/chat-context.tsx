@@ -29,8 +29,9 @@ interface ChatContextValue {
   ) => void;
   handleSubmit: (
     e: React.FormEvent<HTMLFormElement>,
-    chatRequestOptions?: { data?: any }
+    chatRequestOptions?: { experimental_attachments?: any[] }
   ) => void;
+  append: (message: AIMessage) => void;
   reload: () => void;
   stop: () => void;
   setMessages: (messages: AIMessage[]) => void;
@@ -115,20 +116,20 @@ export function ChatProvider({
     reload,
     stop,
     setMessages,
+    append,
   } = useChat({
+    id: chatId || "new-chat",
+    initialMessages,
     api: "/api/chat",
-    body: {
-      chatId,
+    sendExtraMessageFields: true,
+    experimental_prepareRequestBody: (body) => ({
+      id: chatId,
+      message: body.messages.at(-1), // Only send the latest message
       provider: selectedProvider,
       model: selectedModel,
       systemPrompt,
       enabledTools,
-    },
-    initialMessages,
-    // Prevent automatic message submission for existing messages
-    id: chatId || "new-chat", // Unique ID to prevent collision
-    // Configure to send only new messages, not the entire history
-    sendExtraMessageFields: true, // Include IDs to help server identify existing messages
+    }),
     onError: (error) => {
       console.error("=== CLIENT-SIDE CHAT ERROR ===");
       console.error("Error object:", error);
@@ -150,24 +151,6 @@ export function ChatProvider({
       console.log("Message:", message);
       console.log("Usage:", usage);
       console.log("Finish reason:", finishReason);
-      setIsGenerating(false);
-    },
-    // Add fetch interceptor to debug streaming data
-    fetch: async (url, options) => {
-      console.log("=== FETCH REQUEST DEBUG ===");
-      console.log("URL:", url);
-      console.log("Options:", JSON.stringify(options, null, 2));
-      console.log("Chat ID:", chatId);
-      console.log("Initial messages count:", initialMessages.length);
-
-      const response = await fetch(url, options);
-
-      console.log("=== FETCH RESPONSE DEBUG ===");
-      console.log("Status:", response.status);
-      console.log("Headers:", Object.fromEntries(response.headers.entries()));
-      console.log("Response body stream available:", !!response.body);
-
-      return response;
     },
   });
 
@@ -204,6 +187,7 @@ export function ChatProvider({
       input,
       handleInputChange,
       handleSubmit,
+      append,
       reload,
       stop,
       setMessages,
@@ -242,6 +226,7 @@ export function ChatProvider({
       input,
       handleInputChange,
       handleSubmit,
+      append,
       reload,
       stop,
       setMessages,
