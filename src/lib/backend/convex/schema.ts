@@ -22,7 +22,6 @@ export default defineSchema({
 	user_settings: defineTable({
 		user_id: v.string(),
 		privacy_mode: v.boolean(),
-		free_messages_used: v.optional(v.number()),
 	}).index('by_user', ['user_id']),
 	user_keys: defineTable({
 		user_id: v.string(),

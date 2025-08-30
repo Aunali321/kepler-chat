@@ -12,7 +12,7 @@
 	import { useConvexClient } from 'convex-svelte';
 	import { ResultAsync } from 'neverthrow';
 	import { resource } from 'runed';
-	import * as providers from '$lib/utils/providers';
+	import { ProviderUtils } from '$lib/utils/providers';
 
 	type Props = {
 		provider: Provider;
@@ -65,11 +65,8 @@
 		async (key) => {
 			if (!key) return null;
 
-			if (provider === Provider.OpenRouter) {
-				return (await providers.OpenRouter.getApiKey(key)).unwrapOr(null);
-			}
-
-			return null;
+			const result = await ProviderUtils.validateApiKey(provider, key);
+			return result.unwrapOr(null);
 		}
 	);
 </script>
@@ -99,11 +96,17 @@
 				{#if apiKeyInfoResource.loading}
 					<div class="bg-input h-6 w-[200px] animate-pulse rounded-md"></div>
 				{:else if apiKeyInfoResource.current}
-					<span class="text-muted-foreground flex h-6 place-items-center text-xs">
-						${apiKeyInfoResource.current?.usage.toFixed(3)} used ・ ${apiKeyInfoResource.current?.limit_remaining.toFixed(
-							3
-						)} remaining
-					</span>
+					{#if apiKeyInfoResource.current.usage !== undefined && apiKeyInfoResource.current.limit_remaining !== undefined}
+						<span class="text-muted-foreground flex h-6 place-items-center text-xs">
+							${apiKeyInfoResource.current.usage.toFixed(3)} used ・ ${apiKeyInfoResource.current.limit_remaining.toFixed(
+								3
+							)} remaining
+						</span>
+					{:else}
+						<span class="text-muted-foreground flex h-6 place-items-center text-xs">
+							✅ API key is valid
+						</span>
+					{/if}
 				{:else}
 					<span
 						class="flex h-6 w-fit place-items-center rounded-lg bg-red-500/50 px-2 text-xs text-red-500"

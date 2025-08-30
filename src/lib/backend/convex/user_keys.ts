@@ -89,38 +89,6 @@ export const set = mutation({
 			await ctx.db.replace(existing._id, userKey);
 		} else {
 			await ctx.db.insert('user_keys', userKey);
-
-			if (args.provider === Provider.OpenRouter) {
-				const defaultModels = [
-					'google/gemini-2.5-flash',
-					'anthropic/claude-sonnet-4',
-					'openai/o3-mini',
-					'deepseek/deepseek-chat-v3-0324:free',
-				];
-
-				await Promise.all(
-					defaultModels.map(async (model) => {
-						const existing = await ctx.db
-							.query('user_enabled_models')
-							.withIndex('by_model_provider_user', (q) =>
-								q
-									.eq('model_id', model)
-									.eq('provider', Provider.OpenRouter)
-									.eq('user_id', session.userId)
-							)
-							.first();
-
-						if (existing) return;
-
-						await ctx.db.insert('user_enabled_models', {
-							user_id: session.userId,
-							provider: Provider.OpenRouter,
-							model_id: model,
-							pinned: true,
-						});
-					})
-				);
-			}
 		}
 	},
 });

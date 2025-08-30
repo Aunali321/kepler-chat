@@ -32,10 +32,10 @@ While thom.chat is a clone, the featureset is not identical to T3 Chat.
 
 ### 🤖 **AI & Models**
 
-- **400+ AI Models** via OpenRouter integration
-- **Free Tier** with 10 messages using premium models
-- **Unlimited Free Models** (models ending in `:free`)
-- **Bring Your Own Key** for unlimited access
+- **Multiple AI Providers** - OpenAI, Anthropic, Google Gemini, Mistral, Cohere, OpenRouter
+- **600+ AI Models** across all providers
+- **Bring Your Own API Keys** - Users must provide their own API keys
+- **No Usage Limits** - Use any model without restrictions when you have the API key
 
 ### 💬 **Chat Experience**
 
@@ -79,7 +79,7 @@ While thom.chat is a clone, the featureset is not identical to T3 Chat.
 
 - 🔧 Convex Database
 - 🔐 BetterAuth
-- 🤖 OpenRouter API
+- 🤖 Kepler AI SDK (Multi-provider support)
 - 🦾 Blood, sweat, and tears
 
 </td>
@@ -92,7 +92,7 @@ While thom.chat is a clone, the featureset is not identical to T3 Chat.
 
 - Node.js 18+
 - pnpm (recommended)
-- OpenRouter API key (optional for free tier)
+- At least one AI provider API key (OpenAI, Anthropic, Gemini, etc.)
 
 ### Installation
 
@@ -129,16 +129,28 @@ While thom.chat is a clone, the featureset is not identical to T3 Chat.
 
 ## 🎮 Usage
 
-### Free Tier
+### Getting Started
 
-- Sign up and get **10 free messages** with premium models
-- Use **unlimited free models** (ending in `:free`)
-- No credit card required
+1. **Sign up** for a free account
+2. **Add API Keys** - Go to Settings and add API keys for the providers you want to use:
+   - **OpenAI** - GPT models, DALL-E, Whisper
+   - **Anthropic** - Claude models
+   - **Google Gemini** - Gemini models and vision
+   - **Mistral** - Mistral models and embeddings
+   - **Cohere** - Command models and embeddings  
+   - **OpenRouter** - Access to 300+ models
+3. **Start Chatting** - Select any model from your enabled providers
 
-### Premium Features
+### Supported Providers
 
-- Add your own OpenRouter API key for unlimited access
-- Access to all 400+ models
+| Provider | Models | Streaming | Tools | Vision | Embeddings |
+|----------|---------|-----------|-------|--------|------------|
+| OpenAI | GPT-4, o3-mini, DALL-E, TTS | ✅ | ✅ | ✅ | ✅ |
+| Anthropic | Claude 4, Claude 3.5 Sonnet | ✅ | ✅ | ✅ | ❌ |
+| Google Gemini | Gemini 2.5 Pro, Imagen | ✅ | ✅ | ✅ | ✅ |
+| Mistral | Mistral Large, Mistral Embed | ✅ | ✅ | ❌ | ✅ |
+| Cohere | Command A, Command R+ | ✅ | ✅ | ❌ | ✅ |
+| OpenRouter | 300+ models | ✅ | ✅ | ✅ | ❌ |
 
 ## 🤝 Contributing
 
@@ -158,7 +170,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - Inspired by [T3 Chat](https://t3.chat/)
 - Built with [SvelteKit](https://kit.svelte.dev/)
-- Powered by [OpenRouter](https://openrouter.ai/)
+- Powered by [Kepler AI SDK](https://deepwiki.com/keplersystems/kepler-ai-sdk)
 - Database by [Convex](https://convex.dev/)
 
 ---

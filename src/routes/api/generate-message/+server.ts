@@ -1,5 +1,4 @@
 import { PUBLIC_CONVEX_URL } from '$env/static/public';
-import { OPENROUTER_FREE_KEY } from '$env/static/private';
 import { api } from '$lib/backend/convex/_generated/api';
 import type { Doc, Id } from '$lib/backend/convex/_generated/dataModel';
 import { Provider, type Annotation } from '$lib/types';
@@ -8,12 +7,13 @@ import { waitUntil } from '@vercel/functions';
 import { getSessionCookie } from 'better-auth/cookies';
 import { ConvexHttpClient } from 'convex/browser';
 import { err, ok, Result, ResultAsync } from 'neverthrow';
-import OpenAI from 'openai';
 import { z } from 'zod/v4';
 import { generationAbortControllers } from './cache.js';
 import { md } from '$lib/utils/markdown-it.js';
 import * as array from '$lib/utils/array';
 import { parseMessageForRules } from '$lib/utils/rules.js';
+import { createModelManager, type ChatModelManager } from '$lib/services/model-manager.js';
+import type { UserApiKeys } from '$lib/services/model-manager.js';
 
 // Set to true to enable debug logging
 const ENABLE_LOGGING = true;
@@ -22,7 +22,6 @@ const reqBodySchema = z
 	.object({
 		message: z.string().optional(),
 		model_id: z.string(),
-
 		session_token: z.string(),
 		conversation_id: z.string().optional(),
 		web_search_enabled: z.boolean().optional(),
@@ -40,7 +39,6 @@ const reqBodySchema = z
 	.refine(
 		(data) => {
 			if (data.conversation_id === undefined && data.message === undefined) return false;
-
 			return true;
 		},
 		{
@@ -67,34 +65,45 @@ function log(message: string, startTime: number): void {
 
 const client = new ConvexHttpClient(PUBLIC_CONVEX_URL);
 
+async function getUserApiKeys(sessionToken: string): Promise<Result<UserApiKeys, string>> {
+	const keysResult = await ResultAsync.fromPromise(
+		client.query(api.user_keys.all, {
+			session_token: sessionToken,
+		}),
+		(e) => `Failed to get user API keys: ${e}`
+	);
+
+	if (keysResult.isErr()) {
+		return err(keysResult.error);
+	}
+
+	const keys = keysResult.value;
+	return ok({
+		openai: keys.openai,
+		anthropic: keys.anthropic,
+		gemini: keys.gemini,
+		mistral: keys.mistral,
+		cohere: keys.cohere,
+		openrouter: keys.openrouter,
+	});
+}
+
 async function generateConversationTitle({
 	conversationId,
 	sessionToken,
 	startTime,
-	keyResultPromise,
 	userMessage,
+	modelManager,
 }: {
 	conversationId: string;
 	sessionToken: string;
 	startTime: number;
-	keyResultPromise: ResultAsync<string | null, string>;
 	userMessage: string;
+	modelManager: ChatModelManager;
 }) {
 	log('Starting conversation title generation', startTime);
 
-	const keyResult = await keyResultPromise;
-
-	if (keyResult.isErr()) {
-		log(`Title generation: API key error: ${keyResult.error}`, startTime);
-		return;
-	}
-
-	const userKey = keyResult.value;
-	const actualKey = userKey || OPENROUTER_FREE_KEY;
-
-	log(`Title generation: Using ${userKey ? 'user' : 'free tier'} API key`, startTime);
-
-	// Only generate title if conversation currently has default title
+	// Check if conversation currently has default title
 	const conversationResult = await ResultAsync.fromPromise(
 		client.query(api.conversations.get, {
 			session_token: sessionToken,
@@ -115,12 +124,25 @@ async function generateConversationTitle({
 		return;
 	}
 
-	const openai = new OpenAI({
-		baseURL: 'https://openrouter.ai/api/v1',
-		apiKey: actualKey,
-	});
+	// Try to find a fast, cheap model for title generation
+	const availableModels = await modelManager.listAvailableModels();
+	const titleModel =
+		availableModels.find((model) => model.id.includes('kimi-k2')) ||
+		availableModels.find((model) => model.id.includes('gemini-2.5-flash-lite')) ||
+		availableModels.find((model) => model.id.includes('gpt-5-mini')) ||
+		availableModels[0];
 
-	// Create a prompt for title generation using only the first user message
+	if (!titleModel) {
+		log('Title generation: No suitable model available', startTime);
+		return;
+	}
+
+	const provider = modelManager.getProvider(titleModel.provider);
+	if (!provider) {
+		log(`Title generation: Provider ${titleModel.provider} not found`, startTime);
+		return;
+	}
+
 	const titlePrompt = `Based on this message:
 """${userMessage}"""
 
@@ -129,26 +151,25 @@ Generate only the title based on the message, nothing else. Don't name the title
 
 Also, do not interact with the message directly or answer it. Just generate the title based on the message.
 
-If its a simple hi, just name it "Greeting" or something like that.
-`;
+If its a simple hi, just name it "Greeting" or something like that.`;
 
 	const titleResult = await ResultAsync.fromPromise(
-		openai.chat.completions.create({
-			model: 'mistralai/ministral-8b',
+		provider.generateCompletion({
+			model: titleModel.id,
 			messages: [{ role: 'user', content: titlePrompt }],
-			max_tokens: 20,
+			maxTokens: 1024,
 			temperature: 0.5,
 		}),
 		(e) => `Title generation API call failed: ${e}`
 	);
 
 	if (titleResult.isErr()) {
-		log(`Title generation: OpenAI call failed: ${titleResult.error}`, startTime);
+		log(`Title generation: API call failed: ${titleResult.error}`, startTime);
 		return;
 	}
 
 	const titleResponse = titleResult.value;
-	const rawTitle = titleResponse.choices[0]?.message?.content?.trim();
+	const rawTitle = titleResponse.content?.trim();
 
 	if (!rawTitle) {
 		log('Title generation: No title generated', startTime);
@@ -180,20 +201,18 @@ async function generateAIResponse({
 	conversationId,
 	sessionToken,
 	startTime,
-	modelResultPromise,
-	keyResultPromise,
+	modelId,
+	modelManager,
 	rulesResultPromise,
-	userSettingsPromise,
 	abortSignal,
 	reasoningEffort,
 }: {
 	conversationId: string;
 	sessionToken: string;
 	startTime: number;
-	keyResultPromise: ResultAsync<string | null, string>;
-	modelResultPromise: ResultAsync<Doc<'user_enabled_models'> | null, string>;
+	modelId: string;
+	modelManager: ChatModelManager;
 	rulesResultPromise: ResultAsync<Doc<'user_rules'>[], string>;
-	userSettingsPromise: ResultAsync<Doc<'user_settings'> | null, string>;
 	abortSignal?: AbortSignal;
 	reasoningEffort?: 'low' | 'medium' | 'high';
 }) {
@@ -204,36 +223,11 @@ async function generateAIResponse({
 		return;
 	}
 
-	const [modelResult, keyResult, messagesQueryResult, rulesResult, userSettingsResult] =
-		await Promise.all([
-			modelResultPromise,
-			keyResultPromise,
-			ResultAsync.fromPromise(
-				client.query(api.messages.getAllFromConversation, {
-					conversation_id: conversationId as Id<'conversations'>,
-					session_token: sessionToken,
-				}),
-				(e) => `Failed to get messages: ${e}`
-			),
-			rulesResultPromise,
-			userSettingsPromise,
-		]);
-
-	if (modelResult.isErr()) {
-		handleGenerationError({
-			error: modelResult.error,
-			conversationId,
-			messageId: undefined,
-			sessionToken,
-			startTime,
-		});
-		return;
-	}
-
-	const model = modelResult.value;
+	// Get model and provider
+	const model = await modelManager.getModel(modelId);
 	if (!model) {
 		handleGenerationError({
-			error: 'Model not found or not enabled',
+			error: `Model ${modelId} not found or not available`,
 			conversationId,
 			messageId: undefined,
 			sessionToken,
@@ -242,7 +236,30 @@ async function generateAIResponse({
 		return;
 	}
 
-	log('Background: Model found and enabled', startTime);
+	const provider = modelManager.getProvider(model.provider);
+	if (!provider) {
+		handleGenerationError({
+			error: `Provider ${model.provider} not available`,
+			conversationId,
+			messageId: undefined,
+			sessionToken,
+			startTime,
+		});
+		return;
+	}
+
+	log(`Background: Using model ${modelId} with provider ${model.provider}`, startTime);
+
+	const [messagesQueryResult, rulesResult] = await Promise.all([
+		ResultAsync.fromPromise(
+			client.query(api.messages.getAllFromConversation, {
+				conversation_id: conversationId as Id<'conversations'>,
+				session_token: sessionToken,
+			}),
+			(e) => `Failed to get messages: ${e}`
+		),
+		rulesResultPromise,
+	]);
 
 	if (messagesQueryResult.isErr()) {
 		handleGenerationError({
@@ -262,14 +279,14 @@ async function generateAIResponse({
 	const lastUserMessage = messages.filter((m) => m.role === 'user').pop();
 	const webSearchEnabled = lastUserMessage?.web_search_enabled ?? false;
 
-	const modelId = webSearchEnabled ? `${model.model_id}:online` : model.model_id;
+	const finalModelId = webSearchEnabled ? `${modelId}:online` : modelId;
 
 	// Create assistant message
 	const messageCreationResult = await ResultAsync.fromPromise(
 		client.mutation(api.messages.create, {
 			conversation_id: conversationId,
-			model_id: model.model_id,
-			provider: Provider.OpenRouter,
+			model_id: modelId,
+			provider: model.provider as Provider,
 			content: '',
 			role: 'assistant',
 			session_token: sessionToken,
@@ -291,84 +308,6 @@ async function generateAIResponse({
 
 	const mid = messageCreationResult.value;
 	log('Background: Assistant message created', startTime);
-
-	if (keyResult.isErr()) {
-		handleGenerationError({
-			error: `API key query failed: ${keyResult.error}`,
-			conversationId,
-			messageId: mid,
-			sessionToken,
-			startTime,
-		});
-		return;
-	}
-
-	if (userSettingsResult.isErr()) {
-		handleGenerationError({
-			error: `User settings query failed: ${userSettingsResult.error}`,
-			conversationId,
-			messageId: mid,
-			sessionToken,
-			startTime,
-		});
-		return;
-	}
-
-	const userKey = keyResult.value;
-	const userSettings = userSettingsResult.value;
-	let actualKey: string;
-
-	if (userKey) {
-		// User has their own API key
-		actualKey = userKey;
-		log('Background: Using user API key', startTime);
-	} else {
-		// User doesn't have API key, check if using a free model
-		const isFreeModel = model.model_id.endsWith(':free');
-
-		if (!isFreeModel) {
-			// For non-free models, check the 10 message limit
-			const freeMessagesUsed = userSettings?.free_messages_used || 0;
-
-			if (freeMessagesUsed >= 10) {
-				handleGenerationError({
-					error:
-						'Free message limit reached (10/10). Please add your own OpenRouter API key to continue chatting, or use a free model ending in ":free".',
-					conversationId,
-					messageId: mid,
-					sessionToken,
-					startTime,
-				});
-				return;
-			}
-
-			// Increment free message count before generating (only for non-free models)
-			const incrementResult = await ResultAsync.fromPromise(
-				client.mutation(api.user_settings.incrementFreeMessageCount, {
-					session_token: sessionToken,
-				}),
-				(e) => `Failed to increment free message count: ${e}`
-			);
-
-			if (incrementResult.isErr()) {
-				handleGenerationError({
-					error: `Failed to track free message usage: ${incrementResult.error}`,
-					conversationId,
-					messageId: mid,
-					sessionToken,
-					startTime,
-				});
-				return;
-			}
-
-			log(`Background: Using free tier (${freeMessagesUsed + 1}/10 messages)`, startTime);
-		} else {
-			log(`Background: Using free model (${model.model_id}) - no message count`, startTime);
-		}
-
-		// Use environment OpenRouter key
-		actualKey = OPENROUTER_FREE_KEY;
-	}
 
 	if (rulesResult.isErr()) {
 		handleGenerationError({
@@ -405,7 +344,7 @@ async function generateAIResponse({
 		attachedRules.push(...parsedRules);
 	}
 
-	// remove duplicates
+	// Remove duplicates
 	attachedRules = array.fromMap(
 		array.toMap(attachedRules, (r) => [r._id, r]),
 		(_k, v) => v
@@ -413,19 +352,14 @@ async function generateAIResponse({
 
 	log(`Background: ${attachedRules.length} rules attached`, startTime);
 
-	const openai = new OpenAI({
-		baseURL: 'https://openrouter.ai/api/v1',
-		apiKey: actualKey,
-	});
-
 	const formattedMessages = messages.map((m) => {
 		if (m.images && m.images.length > 0 && m.role === 'user') {
 			return {
 				role: 'user' as const,
 				content: [
-					{ type: 'text' as const, text: m.content },
+					{ type: 'text', text: m.content },
 					...m.images.map((img) => ({
-						type: 'image_url' as const,
+						type: 'image_url',
 						image_url: { url: img.url },
 					})),
 				],
@@ -462,20 +396,16 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`,
 		return;
 	}
 
+	// Generate completion with streaming
 	const streamResult = await ResultAsync.fromPromise(
-		openai.chat.completions.create(
-			{
-				model: modelId,
-				messages: messagesToSend,
-				temperature: 0.7,
-				stream: true,
-				reasoning_effort: reasoningEffort,
-			},
-			{
-				signal: abortSignal,
-			}
-		),
-		(e) => `OpenAI API call failed: ${e}`
+		provider.generateCompletion({
+			model: finalModelId,
+			messages: messagesToSend,
+			temperature: 0.7,
+			stream: true,
+			...(reasoningEffort && { reasoning_effort: reasoningEffort }),
+		}),
+		(e) => `API call failed: ${e}`
 	);
 
 	if (streamResult.isErr()) {
@@ -490,7 +420,7 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`,
 	}
 
 	const stream = streamResult.value;
-	log('Background: OpenAI stream created successfully', startTime);
+	log('Background: Stream created successfully', startTime);
 
 	let content = '';
 	let reasoning = '';
@@ -499,23 +429,61 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`,
 	const annotations: Annotation[] = [];
 
 	try {
-		for await (const chunk of stream) {
-			if (abortSignal?.aborted) {
-				log('AI response generation aborted during streaming', startTime);
-				break;
+		// Handle streaming response
+		if (stream && typeof stream[Symbol.asyncIterator] === 'function') {
+			for await (const chunk of stream) {
+				if (abortSignal?.aborted) {
+					log('AI response generation aborted during streaming', startTime);
+					break;
+				}
+
+				chunkCount++;
+
+				// Extract content from chunk based on the stream format
+				if (chunk && typeof chunk === 'object') {
+					const chunkContent = chunk.content || chunk.text || '';
+					const chunkReasoning = chunk.reasoning || '';
+					const chunkAnnotations = chunk.annotations || [];
+
+					reasoning += chunkReasoning;
+					content += chunkContent;
+					annotations.push(...chunkAnnotations);
+
+					if (!content && !reasoning) continue;
+
+					generationId = chunk.id || generationId;
+
+					const updateResult = await ResultAsync.fromPromise(
+						client.mutation(api.messages.updateContent, {
+							message_id: mid,
+							content,
+							reasoning: reasoning.length > 0 ? reasoning : undefined,
+							session_token: sessionToken,
+							generation_id: generationId,
+							annotations,
+							reasoning_effort: reasoningEffort,
+						}),
+						(e) => `Failed to update message content: ${e}`
+					);
+
+					if (updateResult.isErr()) {
+						log(
+							`Background message update failed on chunk ${chunkCount}: ${updateResult.error}`,
+							startTime
+						);
+					}
+				}
 			}
+		} else {
+			// Handle non-streaming response
+			const response = stream as any;
+			content = response.content || response.text || '';
+			reasoning = response.reasoning || '';
+			generationId = response.id;
 
-			chunkCount++;
-
-			// @ts-expect-error you're wrong
-			reasoning += chunk.choices[0]?.delta?.reasoning || '';
-			content += chunk.choices[0]?.delta?.content || '';
-			// @ts-expect-error you're wrong
-			annotations.push(...(chunk.choices[0]?.delta?.annotations ?? []));
-
-			if (!content && !reasoning) continue;
-
-			generationId = chunk.id;
+			if (response.annotations) {
+				annotations.push(...response.annotations);
+			}
 
 			const updateResult = await ResultAsync.fromPromise(
 				client.mutation(api.messages.updateContent, {
@@ -531,10 +499,7 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`,
 			);
 
 			if (updateResult.isErr()) {
-				log(
-					`Background message update failed on chunk ${chunkCount}: ${updateResult.error}`,
-					startTime
-				);
+				log(`Background message update failed: ${updateResult.error}`, startTime);
 			}
 		}
 
@@ -543,50 +508,20 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`,
 			startTime
 		);
 
-		if (!generationId) {
-			log('Background: No generation id found', startTime);
-			return;
-		}
-
+		// Final message update with completion stats
 		const contentHtmlResultPromise = ResultAsync.fromPromise(
 			md.renderAsync(content),
 			(e) => `Failed to render HTML: ${e}`
 		);
 
-		const generationStatsResult = await retryResult(
-			() => getGenerationStats(generationId!, actualKey),
-			{
-				delay: 500,
-				retries: 2,
-				startTime,
-				fnName: 'getGenerationStats',
-			}
-		);
-
-		if (generationStatsResult.isErr()) {
-			log(`Background: Failed to get generation stats: ${generationStatsResult.error}`, startTime);
-		}
-
-		// just default so we don't blow up
-		const generationStats = generationStatsResult.unwrapOr({
-			tokens_completion: undefined,
-			total_cost: undefined,
-		});
-
-		log('Background: Got generation stats', startTime);
-
 		const contentHtmlResult = await contentHtmlResultPromise;
 
-		if (contentHtmlResult.isErr()) {
-			log(`Background: Failed to render HTML: ${contentHtmlResult.error}`, startTime);
-		}
-
-		const [updateMessageResult, updateGeneratingResult, updateCostUsdResult] = await Promise.all([
+		const [updateMessageResult, updateGeneratingResult] = await Promise.all([
 			ResultAsync.fromPromise(
 				client.mutation(api.messages.updateMessage, {
 					message_id: mid,
-					token_count: generationStats.tokens_completion,
-					cost_usd: generationStats.total_cost,
+					token_count: undefined, // Will be calculated by provider if available
+					cost_usd: undefined, // Will be calculated by provider if available
 					generation_id: generationId,
 					session_token: sessionToken,
 					content_html: contentHtmlResult.unwrapOr(undefined),
@@ -600,14 +535,6 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`,
 					session_token: sessionToken,
 				}),
 				(e) => `Failed to update generating status: ${e}`
-			),
-			ResultAsync.fromPromise(
-				client.mutation(api.conversations.updateCostUsd, {
-					conversation_id: conversationId as Id<'conversations'>,
-					cost_usd: generationStats.total_cost ?? 0,
-					session_token: sessionToken,
-				}),
-				(e) => `Failed to update cost usd: ${e}`
 			),
 		]);
 
@@ -624,13 +551,6 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`,
 		}
 
 		log('Background: Message updated', startTime);
-
-		if (updateCostUsdResult.isErr()) {
-			log(`Background cost usd update failed: ${updateCostUsdResult.error}`, startTime);
-			return;
-		}
-
-		log('Background: Cost usd updated', startTime);
 	} catch (error) {
 		handleGenerationError({
 			error: `Stream processing error: ${error}`,
@@ -672,7 +592,6 @@ export const POST: RequestHandler = async ({ request }) => {
 	log('Schema validation passed', startTime);
 
 	const cookie = getSessionCookie(request.headers);
-
 	const sessionToken = cookie?.split('.')[0] ?? null;
 
 	if (!sessionToken) {
@@ -680,29 +599,37 @@ export const POST: RequestHandler = async ({ request }) => {
 		return error(401, 'Unauthorized');
 	}
 
-	const modelResultPromise = ResultAsync.fromPromise(
-		client.query(api.user_enabled_models.get, {
-			provider: Provider.OpenRouter,
-			model_id: args.model_id,
-			session_token: sessionToken,
-		}),
-		(e) => `Failed to get model: ${e}`
-	);
+	// Get user API keys
+	const userApiKeysResult = await getUserApiKeys(sessionToken);
+	if (userApiKeysResult.isErr()) {
+		log(`Failed to get user API keys: ${userApiKeysResult.error}`, startTime);
+		return error(500, 'Failed to get user API keys');
+	}
 
-	const keyResultPromise = ResultAsync.fromPromise(
-		client.query(api.user_keys.get, {
-			provider: Provider.OpenRouter,
-			session_token: sessionToken,
-		}),
-		(e) => `Failed to get API key: ${e}`
-	);
+	const userApiKeys = userApiKeysResult.value;
+	const hasAnyKey = Object.values(userApiKeys).some((key) => key);
 
-	const userSettingsPromise = ResultAsync.fromPromise(
-		client.query(api.user_settings.get, {
-			session_token: sessionToken,
-		}),
-		(e) => `Failed to get user settings: ${e}`
-	);
+	if (!hasAnyKey) {
+		log('User has no API keys configured', startTime);
+		return error(
+			400,
+			'No API keys configured. Please add at least one provider API key in settings.'
+		);
+	}
+
+	// Initialize model manager with user's API keys
+	const modelManager = createModelManager();
+	modelManager.initializeProviders(userApiKeys);
+
+	// Check if the requested model is available
+	const modelAvailable = await modelManager.isModelAvailable(args.model_id);
+	if (!modelAvailable) {
+		log(`Requested model ${args.model_id} not available`, startTime);
+		return error(
+			400,
+			`Model ${args.model_id} is not available. Please check your API keys and try a different model.`
+		);
+	}
 
 	const rulesResultPromise = ResultAsync.fromPromise(
 		client.query(api.user_rules.all, {
@@ -715,7 +642,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	let conversationId = args.conversation_id;
 	if (!conversationId) {
-		// technically zod should catch this but just in case
+		// Create new conversation
 		if (args.message === undefined) {
 			return error(400, 'You must provide a message when creating a new conversation');
 		}
@@ -746,8 +673,8 @@ export const POST: RequestHandler = async ({ request }) => {
 				conversationId,
 				sessionToken,
 				startTime,
-				keyResultPromise,
 				userMessage: args.message,
+				modelManager,
 			}).catch((error) => {
 				log(`Background title generation error: ${error}`, startTime);
 			})
@@ -798,16 +725,15 @@ export const POST: RequestHandler = async ({ request }) => {
 	const abortController = new AbortController();
 	generationAbortControllers.set(conversationId, abortController);
 
-	// Start AI response generation in background - don't await
+	// Start AI response generation in background
 	waitUntil(
 		generateAIResponse({
 			conversationId,
 			sessionToken,
 			startTime,
-			modelResultPromise,
-			keyResultPromise,
+			modelId: args.model_id,
+			modelManager,
 			rulesResultPromise,
-			userSettingsPromise,
 			abortSignal: abortController.signal,
 			reasoningEffort: args.reasoning_effort,
 		})
@@ -833,57 +759,6 @@ export const POST: RequestHandler = async ({ request }) => {
 	log('Response sent, AI generation started in background', startTime);
 	return response({ ok: true, conversation_id: conversationId });
 };
-
-async function getGenerationStats(
-	generationId: string,
-	token: string
-): Promise<Result<Data, string>> {
-	try {
-		const generation = await fetch(`https://openrouter.ai/api/v1/generation?id=${generationId}`, {
-			headers: {
-				Authorization: `Bearer ${token}`,
-			},
-		});
-
-		const { data } = await generation.json();
-
-		if (!data) {
-			return err('No data returned from OpenRouter');
-		}
-
-		return ok(data);
-	} catch {
-		return err('Failed to get generation stats');
-	}
-}
-
-async function retryResult<T, E>(
-	fn: () => Promise<Result<T, E>>,
-	{
-		retries,
-		delay,
-		startTime,
-		fnName,
-	}: { retries: number; delay: number; startTime: number; fnName: string }
-): Promise<Result<T, E>> {
-	let attempts = 0;
-	let lastResult: Result<T, E> | null = null;
-
-	while (attempts <= retries) {
-		lastResult = await fn();
-
-		if (lastResult.isOk()) return lastResult;
-
-		log(`Retrying ${fnName} ${attempts} failed: ${lastResult.error}`, startTime);
-
-		await new Promise((resolve) => setTimeout(resolve, delay));
-		attempts++;
-	}
-
-	if (!lastResult) throw new Error('This should never happen');
-
-	return lastResult;
-}
 
 async function handleGenerationError({
 	error,
@@ -916,39 +791,4 @@ async function handleGenerationError({
 	}
 
 	log('Error updated', startTime);
-}
-
-export interface ApiResponse {
-	data: Data;
-}
-
-export interface Data {
-	created_at: string;
-	model: string;
-	app_id: string | null;
-	external_user: string | null;
-	streamed: boolean;
-	cancelled: boolean;
-	latency: number;
-	moderation_latency: number | null;
-	generation_time: number;
-	tokens_prompt: number;
-	tokens_completion: number;
-	native_tokens_prompt: number;
-	native_tokens_completion: number;
-	native_tokens_reasoning: number;
-	native_tokens_cached: number;
-	num_media_prompt: number | null;
-	num_media_completion: number | null;
-	num_search_results: number | null;
-	origin: string;
-	is_byok: boolean;
-	finish_reason: string;
-	native_finish_reason: string;
-	usage: number;
-	id: string;
-	upstream_id: string;
-	total_cost: number;
-	cache_discount: number | null;
-	provider_name: string;
 }
