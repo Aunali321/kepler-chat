@@ -162,7 +162,7 @@
 					</Tooltip>
 				{/if}
 
-				{#if model.capabilities.toolCalls}
+				{#if model.capabilities.functionCalling}
 					<Tooltip>
 						{#snippet trigger(tooltip)}
 							<div

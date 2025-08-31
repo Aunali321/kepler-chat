@@ -16,14 +16,3 @@ export function supportsToolCalls(model: ModelInfo): boolean {
 	return model.capabilities.functionCalling;
 }
 
-export function getImageSupportedModels(models: ModelInfo[]): ModelInfo[] {
-	return models.filter(supportsImages);
-}
-
-export function getReasoningModels(models: ModelInfo[]): ModelInfo[] {
-	return models.filter(supportsReasoning);
-}
-
-export function getStreamingModels(models: ModelInfo[]): ModelInfo[] {
-	return models.filter(supportsStreaming);
-}
