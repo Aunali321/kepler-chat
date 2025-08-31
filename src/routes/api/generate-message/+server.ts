@@ -356,55 +356,17 @@ async function generateAIResponse({
 	log(`Background: ${attachedRules.length} rules attached`, startTime);
 
 	const formattedMessages = messages.map((m) => {
-		// Handle attachments format
 		if (m.attachments && m.attachments.length > 0 && m.role === 'user') {
-			const contentParts: Array<{ 
-				type: string; 
-				text?: string; 
-				imageUrl?: string; 
-				videoUrl?: string; 
-				audioUrl?: string; 
-				documentUrl?: string; 
-				mimeType?: string;
-			}> = [{ type: 'text', text: m.content }];
+			const contentParts = [
+				{ type: 'text', text: m.content },
+				...m.attachments.map(attachment => ({
+					type: attachment.type,
+					[`${attachment.type}Url`]: attachment.url,
+					mimeType: attachment.mimeType,
+				}))
+			];
 			
-			for (const attachment of m.attachments) {
-				switch (attachment.type) {
-					case 'image':
-						contentParts.push({
-							type: 'image',
-							imageUrl: attachment.url,
-							mimeType: attachment.mimeType,
-						});
-						break;
-					case 'video':
-						contentParts.push({
-							type: 'video',
-							videoUrl: attachment.url,
-							mimeType: attachment.mimeType,
-						});
-						break;
-					case 'audio':
-						contentParts.push({
-							type: 'audio',
-							audioUrl: attachment.url,
-							mimeType: attachment.mimeType,
-						});
-						break;
-					case 'document':
-						contentParts.push({
-							type: 'document',
-							documentUrl: attachment.url,
-							mimeType: attachment.mimeType,
-						});
-						break;
-				}
-			}
-			
-			return {
-				role: 'user' as const,
-				content: contentParts,
-			};
+			return { role: 'user' as const, content: contentParts };
 		}
 		
 		return {

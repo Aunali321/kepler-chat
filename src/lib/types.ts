@@ -18,13 +18,6 @@ export type ProviderMeta = {
 	apiKeyName: string;
 	placeholder: string;
 	docsLink: string;
-	supportsStreaming: boolean;
-	supportsTools: boolean;
-	supportsVision: boolean;
-	supportsVideo: boolean;
-	supportsAudio: boolean;
-	supportsDocuments: boolean;
-	supportsEmbeddings: boolean;
 };
 
 export const UrlCitationSchema = z.object({
@@ -53,13 +46,6 @@ export const PROVIDER_META: Record<Provider, ProviderMeta> = {
 		apiKeyName: 'OpenAI API Key',
 		placeholder: 'sk-...',
 		docsLink: 'https://platform.openai.com/docs',
-		supportsStreaming: true,
-		supportsTools: true,
-		supportsVision: true,
-		supportsVideo: false,
-		supportsAudio: true,
-		supportsDocuments: false,
-		supportsEmbeddings: true,
 	},
 	[Provider.Anthropic]: {
 		title: 'Anthropic',
@@ -68,13 +54,6 @@ export const PROVIDER_META: Record<Provider, ProviderMeta> = {
 		apiKeyName: 'Anthropic API Key',
 		placeholder: 'sk-ant-...',
 		docsLink: 'https://docs.anthropic.com',
-		supportsStreaming: true,
-		supportsTools: true,
-		supportsVision: true,
-		supportsVideo: false,
-		supportsAudio: false,
-		supportsDocuments: true,
-		supportsEmbeddings: false,
 	},
 	[Provider.Gemini]: {
 		title: 'Google Gemini',
@@ -83,13 +62,6 @@ export const PROVIDER_META: Record<Provider, ProviderMeta> = {
 		apiKeyName: 'Google AI API Key',
 		placeholder: 'AIza...',
 		docsLink: 'https://ai.google.dev/docs',
-		supportsStreaming: true,
-		supportsTools: true,
-		supportsVision: true,
-		supportsVideo: true,
-		supportsAudio: true,
-		supportsDocuments: true,
-		supportsEmbeddings: true,
 	},
 	[Provider.Mistral]: {
 		title: 'Mistral',
@@ -98,13 +70,6 @@ export const PROVIDER_META: Record<Provider, ProviderMeta> = {
 		apiKeyName: 'Mistral API Key',
 		placeholder: 'mistral-...',
 		docsLink: 'https://docs.mistral.ai',
-		supportsStreaming: true,
-		supportsTools: true,
-		supportsVision: false,
-		supportsVideo: false,
-		supportsAudio: false,
-		supportsDocuments: false,
-		supportsEmbeddings: true,
 	},
 	[Provider.Cohere]: {
 		title: 'Cohere',
@@ -113,13 +78,6 @@ export const PROVIDER_META: Record<Provider, ProviderMeta> = {
 		apiKeyName: 'Cohere API Key',
 		placeholder: 'co_...',
 		docsLink: 'https://docs.cohere.com',
-		supportsStreaming: true,
-		supportsTools: true,
-		supportsVision: false,
-		supportsVideo: false,
-		supportsAudio: false,
-		supportsDocuments: false,
-		supportsEmbeddings: true,
 	},
 	[Provider.OpenRouter]: {
 		title: 'OpenRouter',
@@ -128,12 +86,5 @@ export const PROVIDER_META: Record<Provider, ProviderMeta> = {
 		apiKeyName: 'OpenRouter API Key',
 		placeholder: 'sk-or-...',
 		docsLink: 'https://openrouter.ai/docs',
-		supportsStreaming: true,
-		supportsTools: true,
-		supportsVision: true,
-		supportsVideo: false,
-		supportsAudio: false,
-		supportsDocuments: false,
-		supportsEmbeddings: false,
 	},
 };

@@ -20,8 +20,8 @@
 	import { settings } from '$lib/state/settings.svelte.js';
 	import { Provider } from '$lib/types';
 	import { compressImage } from '$lib/utils/image-compression';
-	import { supportsImages, supportsReasoning, supportsVideo, supportsAudio, supportsDocuments } from '$lib/utils/model-capabilities';
-	import { AttachmentManager, type AttachmentType, type ProcessedAttachment } from '$lib/utils/attachment-manager';
+	import { supportsImages, supportsReasoning } from '$lib/utils/model-capabilities';
+	import { getSupportedAttachmentTypes, getFileType, getAcceptString, type ProcessedAttachment } from '$lib/utils/attachment-manager';
 	import { omit, pick } from '$lib/utils/object.js';
 	import { cn } from '$lib/utils/utils.js';
 	import { useConvexClient } from 'convex-svelte';
@@ -218,19 +218,12 @@
 
 	const currentModel = $derived.by(() => {
 		if (!settings.modelId) return null;
-		const allModels = models.all();
-		return allModels.find((m) => m.id === settings.modelId) || null;
+		return models.all().find((m) => m.id === settings.modelId) || null;
 	});
 
-	const currentModelSupportsImages = $derived(currentModel ? supportsImages(currentModel) : false);
-	const currentModelSupportsVideo = $derived(currentModel ? supportsVideo(currentModel) : false);
-	const currentModelSupportsAudio = $derived(currentModel ? supportsAudio(currentModel) : false);
-	const currentModelSupportsDocuments = $derived(currentModel ? supportsDocuments(currentModel) : false);
-
-	const supportedAttachmentTypes = $derived.by(() => {
-		if (!currentModel) return [];
-		return AttachmentManager.getSupportedAttachmentTypes(currentModel);
-	});
+	const supportedAttachmentTypes = $derived(
+		currentModel ? getSupportedAttachmentTypes(currentModel) : []
+	);
 
 	const currentModelSupportsReasoning = $derived.by(() => {
 		if (!settings.modelId) return false;
@@ -245,11 +238,10 @@
 		maxSize: 100 * 1024 * 1024, // 100MB max for any file type
 	});
 
-	// Update the file input accept attribute reactively
+	// Update file input accept attribute reactively
 	$effect(() => {
 		if (fileInput) {
-			const acceptString = AttachmentManager.getAcceptString(supportedAttachmentTypes);
-			fileInput.accept = acceptString;
+			fileInput.accept = getAcceptString(supportedAttachmentTypes);
 		}
 	});
 
@@ -261,18 +253,16 @@
 
 		try {
 			for (const file of files) {
-				// Validate file against current model capabilities
-				const validation = AttachmentManager.validateFile(file, currentModel);
-				if (!validation.valid) {
-					console.warn(`Skipping invalid file ${file.name}: ${validation.error}`);
-					// TODO: Show error toast to user
+				// Simple file validation
+				const fileType = getFileType(file);
+				if (!fileType || !supportedAttachmentTypes.includes(fileType)) {
+					console.warn(`Unsupported file type: ${file.name}`);
 					continue;
 				}
 
+				// Compress images for better performance
 				let fileToUpload = file;
-
-				// Compress images to max 1MB for better performance
-				if (validation.type === 'image') {
+				if (fileType === 'image') {
 					fileToUpload = await compressImage(file, 1024 * 1024);
 				}
 
@@ -301,7 +291,7 @@
 
 				if (url) {
 					uploadedFiles.push({
-						type: validation.type!,
+						type: fileType,
 						url,
 						storage_id: storageId,
 						fileName: file.name,
@@ -838,7 +828,7 @@
 												{/if}
 												<span class="hidden whitespace-nowrap sm:inline">
 													{#if supportedAttachmentTypes.length === 1 && supportedAttachmentTypes[0]}
-														Attach {AttachmentManager.getTypeDisplayName(supportedAttachmentTypes[0]).toLowerCase()}
+														Attach {supportedAttachmentTypes[0]}
 													{:else}
 														Attach files
 													{/if}
@@ -899,7 +889,7 @@
 				<UploadIcon class="text-primary mx-auto mb-4 h-16 w-16" />
 				<p class="text-xl font-semibold">
 					{#if supportedAttachmentTypes.length === 1 && supportedAttachmentTypes[0]}
-						Add {AttachmentManager.getTypeDisplayName(supportedAttachmentTypes[0]).toLowerCase()}
+						Add {supportedAttachmentTypes[0]}
 					{:else}
 						Add files
 					{/if}

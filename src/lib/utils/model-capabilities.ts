@@ -16,32 +16,8 @@ export function supportsToolCalls(model: ModelInfo): boolean {
 	return model.capabilities.functionCalling;
 }
 
-export function supportsVideo(model: ModelInfo): boolean {
-	return model.capabilities.video ?? false;
-}
-
-export function supportsAudio(model: ModelInfo): boolean {
-	return model.capabilities.audio;
-}
-
-export function supportsDocuments(model: ModelInfo): boolean {
-	return model.capabilities.documents ?? false;
-}
-
 export function getImageSupportedModels(models: ModelInfo[]): ModelInfo[] {
 	return models.filter(supportsImages);
-}
-
-export function getVideoSupportedModels(models: ModelInfo[]): ModelInfo[] {
-	return models.filter(supportsVideo);
-}
-
-export function getAudioSupportedModels(models: ModelInfo[]): ModelInfo[] {
-	return models.filter(supportsAudio);
-}
-
-export function getDocumentSupportedModels(models: ModelInfo[]): ModelInfo[] {
-	return models.filter(supportsDocuments);
 }
 
 export function getReasoningModels(models: ModelInfo[]): ModelInfo[] {

@@ -15,9 +15,6 @@
 		supportsReasoning,
 		supportsStreaming,
 		supportsToolCalls,
-		supportsVideo,
-		supportsAudio,
-		supportsDocuments,
 	} from '$lib/utils/model-capabilities';
 	import { capitalize } from '$lib/utils/strings';
 	import { cn } from '$lib/utils/utils';
@@ -53,32 +50,13 @@
 
 	type Props = {
 		class?: string;
-		/* When attachments are present, restrict to models that support all attachment types */
+		/* Required capabilities that the selected model must support */
 		requiredCapabilities?: Array<'vision' | 'audio' | 'video' | 'documents'>;
 	};
 
 	let { class: className, requiredCapabilities = [] }: Props = $props();
 
 	const client = useConvexClient();
-
-	function meetsRequiredCapabilities(model: any): boolean {
-		if (requiredCapabilities.length === 0) return true;
-
-		return requiredCapabilities.every((capability) => {
-			switch (capability) {
-				case 'vision':
-					return supportsImages(model);
-				case 'video':
-					return supportsVideo(model);
-				case 'audio':
-					return supportsAudio(model);
-				case 'documents':
-					return supportsDocuments(model);
-				default:
-					return true;
-			}
-		});
-	}
 
 	const enabledModelsQuery = useCachedQuery(api.user_enabled_models.get_enabled, {
 		session_token: session.current?.session.token ?? '',
@@ -285,6 +263,18 @@
 	// until we migrate the pinning system to work with the new ModelInfo structure
 	const enabledModelsData = $derived(Object.values(enabledModelsQuery.data ?? {}));
 	const pinnedModels = $derived(enabledModelsData.filter((m) => isPinned(m)));
+
+	function modelSupportsRequiredCapabilities(model: typeof enabledArr[number], required: Array<'vision' | 'audio' | 'video' | 'documents'>): boolean {
+		return required.every(capability => {
+			switch (capability) {
+				case 'vision': return model.capabilities.vision;
+				case 'audio': return model.capabilities.audio;
+				case 'video': return model.capabilities.video;
+				case 'documents': return model.capabilities.documents;
+				default: return false;
+			}
+		});
+	}
 </script>
 
 <svelte:window
@@ -374,7 +364,7 @@
 							{@const formatted = modelInfo
 								? formatModelName(modelInfo)
 								: { full: model.model_id, primary: model.model_id, secondary: '' }}
-							{@const disabled = modelInfo && !meetsRequiredCapabilities(modelInfo)}
+							{@const disabled = requiredCapabilities.length > 0 && modelInfo && !modelSupportsRequiredCapabilities(modelInfo, requiredCapabilities)}
 
 							<Command.Item
 								value={model.model_id}
@@ -534,7 +524,7 @@
 
 {#snippet modelCard(model: (typeof enabledArr)[number])}
 	{@const formatted = formatModelName(model)}
-	{@const disabled = !meetsRequiredCapabilities(model)}
+	{@const disabled = requiredCapabilities.length > 0 && !modelSupportsRequiredCapabilities(model, requiredCapabilities)}
 	{@const enabledModelData = enabledModelsData.find((m) => m.model_id === model.id)}
 
 	<Command.Item
