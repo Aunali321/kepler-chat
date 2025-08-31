@@ -44,7 +44,7 @@ async function getUserApiKeys(sessionToken: string): Promise<UserApiKeys | null>
 	return {
 		openai: keys.openai,
 		anthropic: keys.anthropic,
-		gemini: keys.gemini,
+		gemini: keys.google,
 		mistral: keys.mistral,
 		cohere: keys.cohere,
 		openrouter: keys.openrouter,

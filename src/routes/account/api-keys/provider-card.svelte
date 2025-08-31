@@ -96,7 +96,7 @@
 				{#if apiKeyInfoResource.loading}
 					<div class="bg-input h-6 w-[200px] animate-pulse rounded-md"></div>
 				{:else if apiKeyInfoResource.current}
-					{#if apiKeyInfoResource.current.usage !== undefined && apiKeyInfoResource.current.limit_remaining !== undefined}
+					{#if apiKeyInfoResource.current.usage !== undefined && apiKeyInfoResource.current.limit_remaining !== undefined && apiKeyInfoResource.current.usage !== null && apiKeyInfoResource.current.limit_remaining !== null}
 						<span class="text-muted-foreground flex h-6 place-items-center text-xs">
 							${apiKeyInfoResource.current.usage.toFixed(3)} used ・ ${apiKeyInfoResource.current.limit_remaining.toFixed(
 								3

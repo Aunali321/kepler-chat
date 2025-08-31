@@ -19,7 +19,7 @@ export interface ProviderConfig {
 export interface UserApiKeys {
 	openai?: string;
 	anthropic?: string;
-	gemini?: string;
+	google?: string;
 	mistral?: string;
 	cohere?: string;
 	openrouter?: string;
@@ -52,9 +52,9 @@ export class ChatModelManager {
 			this.enabledProviders.set('anthropic', provider);
 		}
 
-		if (userApiKeys.gemini) {
+		if (userApiKeys.google) {
 			const provider = new GeminiProvider({
-				apiKey: userApiKeys.gemini,
+				apiKey: userApiKeys.google,
 			});
 			this.modelManager.addProvider(provider);
 			this.enabledProviders.set('gemini', provider);
@@ -97,9 +97,19 @@ export class ChatModelManager {
 		return await this.modelManager.listModels();
 	}
 
+	async getModelsByProvider(provider: Provider): Promise<ModelInfo[]> {
+		if (!this.hasProviderEnabled(provider)) {
+			return [];
+		}
+		const allModels = await this.listAvailableModels();
+		return allModels.filter((model) => model.provider === provider);
+	}
+
 	async getModelsByCapability(capability: string): Promise<ModelInfo[]> {
 		const allModels = await this.listAvailableModels();
-		return allModels.filter(model => model.capabilities[capability as keyof typeof model.capabilities]);
+		return allModels.filter(
+			(model) => model.capabilities[capability as keyof typeof model.capabilities]
+		);
 	}
 
 	hasProviderEnabled(provider: Provider): boolean {
@@ -111,7 +121,7 @@ export class ChatModelManager {
 	}
 
 	isModelAvailable(modelId: string): Promise<boolean> {
-		return this.getModel(modelId).then(model => model !== null);
+		return this.getModel(modelId).then((model) => model !== null);
 	}
 }
 

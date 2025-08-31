@@ -5,36 +5,37 @@
 	import { Search } from '$lib/components/ui/search';
 	import { models } from '$lib/state/models.svelte';
 	import { session } from '$lib/state/session.svelte';
-	import { Provider } from '$lib/types.js';
+	import { page } from '$app/state';
+	import { Provider, PROVIDER_META } from '$lib/types.js';
 	import { fuzzysearch } from '$lib/utils/fuzzy-search';
 	import { cn } from '$lib/utils/utils';
 	import { Toggle } from 'melt/builders';
 	import PlusIcon from '~icons/lucide/plus';
 	import XIcon from '~icons/lucide/x';
 	import ModelCard from './model-card.svelte';
-	import { supportsImages, supportsReasoning } from '$lib/utils/model-capabilities';
+	import type { ModelInfo } from '@keplersystems/kepler-ai-sdk';
 
-	const openRouterKeyQuery = useCachedQuery(api.user_keys.get, {
-		provider: Provider.OpenRouter,
+	// Get all user's API keys to determine which providers are available
+	const userKeysQuery = useCachedQuery(api.user_keys.all, {
 		session_token: session.current?.session.token ?? '',
 	});
 
-	const hasOpenRouterKey = $derived(
-		openRouterKeyQuery.data !== undefined && openRouterKeyQuery.data !== ''
-	);
+
+	// Show providers that have API keys, regardless of whether models are loaded yet
+	const availableProviders = $derived.by(() => {
+		if (!userKeysQuery.data) {
+			return [];
+		}
+		
+		return Object.entries(userKeysQuery.data)
+			.filter(([_, key]) => key) // Only providers with API keys
+			.map(([provider, _]) => provider as Provider);
+	});
 
 	let search = $state('');
+	let selectedProvider = $state<Provider | 'all'>('all');
 
-	const openRouterToggle = new Toggle({
-		value: true,
-		// TODO: enable this if and when when we use multiple providers
-		disabled: true,
-	});
-
-	const freeModelsToggle = new Toggle({
-		value: false,
-	});
-
+	// Filter toggles
 	const reasoningModelsToggle = new Toggle({
 		value: false,
 	});
@@ -43,43 +44,47 @@
 		value: false,
 	});
 
-	let initiallyEnabled = $state<string[]>([]);
-	$effect(() => {
-		if (Object.keys(models.enabled).length && initiallyEnabled.length === 0) {
-			initiallyEnabled = models
-				.from(Provider.OpenRouter)
-				.filter((m) => m.enabled)
-				.map((m) => m.id);
-		}
+	const streamingModelsToggle = new Toggle({
+		value: false,
 	});
 
-	const openRouterModels = $derived(
-		fuzzysearch({
-			haystack: models.from(Provider.OpenRouter).filter((m) => {
-				if (freeModelsToggle.value) {
-					if (m.pricing.prompt !== '0') return false;
-				}
+	// Get models based on current filters
+	const filteredModels = $derived.by(() => {
+		let modelList = selectedProvider === 'all' 
+			? models.all()
+			: models.from(selectedProvider);
 
-				if (reasoningModelsToggle.value) {
-					if (!supportsReasoning(m)) return false;
-				}
+		// Apply capability filters
+		if (reasoningModelsToggle.value) {
+			modelList = modelList.filter(m => m.capabilities.reasoning);
+		}
 
-				if (imageModelsToggle.value) {
-					if (!supportsImages(m)) return false;
-				}
+		if (imageModelsToggle.value) {
+			modelList = modelList.filter(m => m.capabilities.vision);
+		}
 
-				return true;
-			}),
-			needle: search,
-			property: 'name',
-		}).sort((a, b) => {
-			const aEnabled = initiallyEnabled.includes(a.id);
-			const bEnabled = initiallyEnabled.includes(b.id);
-			if (aEnabled && !bEnabled) return -1;
-			if (!aEnabled && bEnabled) return 1;
-			return 0;
-		})
-	);
+		if (streamingModelsToggle.value) {
+			modelList = modelList.filter(m => m.capabilities.streaming);
+		}
+
+		// Apply text search
+		if (search) {
+			modelList = fuzzysearch({
+				haystack: modelList,
+				needle: search,
+				property: 'name',
+			});
+		}
+
+		// Sort: enabled first, then by name
+		return modelList.sort((a, b) => {
+			if (a.enabled && !b.enabled) return -1;
+			if (!a.enabled && b.enabled) return 1;
+			return a.name.localeCompare(b.name);
+		});
+	});
+
+	const hasAnyApiKeys = $derived(availableProviders.length > 0);
 </script>
 
 <svelte:head>
@@ -91,76 +96,125 @@
 	Choose which models appear in your model selector. This won't affect existing conversations.
 </h2>
 
-<div class="mt-4 flex flex-col gap-2">
-	<Search bind:value={search} placeholder="Search models" />
-	<div class="flex place-items-center gap-2">
-		<button
-			{...openRouterToggle.trigger}
-			aria-label="OpenRouter"
-			class="group text-primary-foreground bg-primary aria-[pressed=false]:border-border border-primary aria-[pressed=false]:bg-background flex place-items-center gap-1 rounded-full border px-2 py-1 text-xs transition-all disabled:cursor-not-allowed disabled:opacity-50"
-		>
-			OpenRouter
-			<XIcon class="inline size-3 group-aria-[pressed=false]:hidden" />
-			<PlusIcon class="inline size-3 group-aria-[pressed=true]:hidden" />
-		</button>
-		<button
-			{...freeModelsToggle.trigger}
-			aria-label="Free Models"
-			class="group text-primary-foreground bg-primary aria-[pressed=false]:border-border border-primary aria-[pressed=false]:bg-background flex place-items-center gap-1 rounded-full border px-2 py-1 text-xs transition-all disabled:cursor-not-allowed disabled:opacity-50"
-		>
-			Free
-			<XIcon class="inline size-3 group-aria-[pressed=false]:hidden" />
-			<PlusIcon class="inline size-3 group-aria-[pressed=true]:hidden" />
-		</button>
-		<button
-			{...reasoningModelsToggle.trigger}
-			aria-label="Reasoning Models"
-			class="group text-primary-foreground bg-primary aria-[pressed=false]:border-border border-primary aria-[pressed=false]:bg-background flex place-items-center gap-1 rounded-full border px-2 py-1 text-xs transition-all disabled:cursor-not-allowed disabled:opacity-50"
-		>
-			Reasoning
-			<XIcon class="inline size-3 group-aria-[pressed=false]:hidden" />
-			<PlusIcon class="inline size-3 group-aria-[pressed=true]:hidden" />
-		</button>
-		<button
-			{...imageModelsToggle.trigger}
-			aria-label="Image Models"
-			class="group text-primary-foreground bg-primary aria-[pressed=false]:border-border border-primary aria-[pressed=false]:bg-background flex place-items-center gap-1 rounded-full border px-2 py-1 text-xs transition-all disabled:cursor-not-allowed disabled:opacity-50"
-		>
-			Images
-			<XIcon class="inline size-3 group-aria-[pressed=false]:hidden" />
-			<PlusIcon class="inline size-3 group-aria-[pressed=true]:hidden" />
-		</button>
+{#if !hasAnyApiKeys}
+	<div class="mt-8 rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+		<h3 class="font-semibold text-yellow-800">No API Keys Configured</h3>
+		<p class="text-sm text-yellow-700 mt-1">
+			You need to add API keys for at least one provider to see and manage models. 
+			<a href="/account/api-keys" class="underline hover:text-yellow-900">Go to API Keys Settings</a>
+		</p>
 	</div>
-</div>
+{:else}
+	<div class="mt-6 space-y-4">
+		<!-- Search -->
+		<Search bind:value={search} placeholder="Search models" />
 
-{#if openRouterModels.length > 0}
-	<div class="mt-4 flex flex-col gap-4">
-		<div>
-			<h3 class="text-lg font-bold">OpenRouter</h3>
-			<p class="text-muted-foreground text-sm">Easy access to over 400 models.</p>
-		</div>
-		<div class="relative">
-			<div
-				class={cn('flex flex-col gap-4 overflow-hidden', {
-					'pointer-events-none max-h-96 mask-b-from-0% mask-b-to-80%': !hasOpenRouterKey,
-				})}
+		<!-- Provider and filter tabs -->
+		<div class="flex flex-wrap items-center gap-2">
+			<!-- Provider selector -->
+			<div class="flex items-center gap-1">
+				<button
+					onclick={() => selectedProvider = 'all'}
+					class={cn(
+						"px-3 py-1 rounded-full text-sm transition-all",
+						selectedProvider === 'all' 
+							? "bg-primary text-primary-foreground" 
+							: "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+					)}
+				>
+					All Providers ({models.all().length})
+				</button>
+
+				{#each availableProviders as provider}
+					{@const providerMeta = PROVIDER_META[provider]}
+					{@const providerModels = models.from(provider)}
+					{@const hasModels = models.hasProvider(provider)}
+					{#if providerMeta}
+						<button
+							onclick={() => selectedProvider = provider}
+							class={cn(
+								"px-3 py-1 rounded-full text-sm transition-all",
+								selectedProvider === provider 
+									? "bg-primary text-primary-foreground" 
+									: "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+							)}
+						>
+							{providerMeta.title} ({hasModels ? providerModels.length : 'loading...'})
+						</button>
+					{/if}
+				{/each}
+			</div>
+
+			<!-- Capability filters -->
+			<div class="h-4 w-px bg-border"></div>
+			
+			<button
+				{...reasoningModelsToggle.trigger}
+				class={cn(
+					"px-3 py-1 rounded-full text-sm transition-all",
+					reasoningModelsToggle.value
+						? "bg-blue-500 text-white"
+						: "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+				)}
 			>
-				{#each openRouterModels as model (model.id)}
+				Reasoning
+			</button>
+
+			<button
+				{...imageModelsToggle.trigger}
+				class={cn(
+					"px-3 py-1 rounded-full text-sm transition-all",
+					imageModelsToggle.value
+						? "bg-green-500 text-white"
+						: "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+				)}
+			>
+				Vision
+			</button>
+
+			<button
+				{...streamingModelsToggle.trigger}
+				class={cn(
+					"px-3 py-1 rounded-full text-sm transition-all",
+					streamingModelsToggle.value
+						? "bg-purple-500 text-white"
+						: "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+				)}
+			>
+				Streaming
+			</button>
+		</div>
+
+		<!-- Models grid -->
+		{#if filteredModels.length === 0}
+			<div class="text-center py-12">
+				{#if selectedProvider !== 'all' && !models.hasProvider(selectedProvider)}
+					<h3 class="text-lg font-semibold text-muted-foreground">Loading models...</h3>
+					<p class="text-sm text-muted-foreground mt-2">
+						Models are being loaded from {PROVIDER_META[selectedProvider]?.title || selectedProvider}. Please refresh the page in a moment.
+					</p>
+				{:else}
+					<h3 class="text-lg font-semibold text-muted-foreground">No models found</h3>
+					<p class="text-sm text-muted-foreground mt-2">
+						{#if search}
+							Try adjusting your search or filters.
+						{:else}
+							No models match your current filters.
+						{/if}
+					</p>
+				{/if}
+			</div>
+		{:else}
+			<div class="grid gap-4">
+				{#each filteredModels as model (model.id)}
 					<ModelCard
-						provider={Provider.OpenRouter}
+						provider={model.provider as Provider}
 						{model}
 						enabled={model.enabled}
-						disabled={!hasOpenRouterKey}
+						disabled={false}
 					/>
 				{/each}
 			</div>
-			{#if !hasOpenRouterKey}
-				<div
-					class="absolute bottom-10 left-0 z-10 flex w-full place-items-center justify-center gap-2"
-				>
-					<Button href="/account/api-keys#openrouter" class="w-fit">Add API Key</Button>
-				</div>
-			{/if}
-		</div>
+		{/if}
 	</div>
 {/if}

@@ -8,9 +8,9 @@
 	import { models as modelsState } from '$lib/state/models.svelte';
 	import { session } from '$lib/state/session.svelte';
 	import { settings } from '$lib/state/settings.svelte';
-	import { Provider } from '$lib/types';
+	import { Provider, PROVIDER_META } from '$lib/types';
 	import { fuzzysearch } from '$lib/utils/fuzzy-search';
-	import { supportsImages, supportsReasoning } from '$lib/utils/model-capabilities';
+	import { supportsImages, supportsReasoning, supportsStreaming, supportsToolCalls } from '$lib/utils/model-capabilities';
 	import { capitalize } from '$lib/utils/strings';
 	import { cn } from '$lib/utils/utils';
 	import { type Component } from 'svelte';
@@ -57,7 +57,14 @@
 		session_token: session.current?.session.token ?? '',
 	});
 
-	const enabledArr = $derived(Object.values(enabledModelsQuery.data ?? {}));
+	// Get enabled models from our models state with ModelInfo data
+	const enabledArr = $derived.by(() => {
+		const enabledModelIds = Object.keys(enabledModelsQuery.data ?? {});
+		const enabledModels = modelsState.all().filter(model => 
+			enabledModelIds.some(id => id.includes(model.id))
+		);
+		return enabledModels;
+	});
 
 	modelsState.init();
 
@@ -133,37 +140,38 @@
 		fuzzysearch({
 			haystack: enabledArr,
 			needle: search,
-			property: 'model_id',
+			property: 'id',
 		})
 	);
 
-	// Group models by company
+	// Group models by provider
 	const groupedModels = $derived.by(() => {
-		const groups: Record<string, typeof filteredModels> = {};
+		const groups: Record<Provider, typeof filteredModels> = {} as Record<Provider, typeof filteredModels>;
 
 		filteredModels.forEach((model) => {
-			const company = getCompanyFromModelId(model.model_id);
-			if (!groups[company]) {
-				groups[company] = [];
+			const provider = model.provider as Provider;
+			if (!groups[provider]) {
+				groups[provider] = [];
 			}
-			groups[company].push(model);
+			groups[provider].push(model);
 		});
 
-		// Sort companies with known icons first
-		const result = Object.entries(groups).sort(([a], [b]) => {
-			const aHasIcon = companyIcons[a] ? 0 : 1;
-			const bHasIcon = companyIcons[b] ? 0 : 1;
-			return aHasIcon - bHasIcon || a.localeCompare(b);
-		});
+		// Sort by provider order and name
+		const result = Object.entries(groups)
+			.sort(([a], [b]) => a.localeCompare(b))
+			.map(([provider, models]) => [
+				provider,
+				models.sort((a, b) => a.name.localeCompare(b.name))
+			] as [Provider, typeof models]);
 
 		return result;
 	});
 
-	const currentModel = $derived(enabledArr.find((m) => m.model_id === settings.modelId));
+	const currentModel = $derived(enabledArr.find((m) => m.id === settings.modelId));
 
 	$effect(() => {
-		if (!enabledArr.find((m) => m.model_id === settings.modelId) && enabledArr.length > 0) {
-			settings.modelId = enabledArr[0]!.model_id;
+		if (!enabledArr.find((m) => m.id === settings.modelId) && enabledArr.length > 0) {
+			settings.modelId = enabledArr[0]!.id;
 		}
 	});
 
@@ -179,8 +187,10 @@
 		{ from: 'o3', to: 'o3' },
 	];
 
-	function formatModelName(modelId: string) {
-		const cleanId = modelId.replace(/^[^/]+\//, '');
+	function formatModelName(model: { id: string; name: string }) {
+		// Use the name field if available, fallback to processing ID
+		const displayName = model.name || model.id;
+		const cleanId = displayName.replace(/^[^/]+\//, '');
 		const parts = cleanId.split(/[-_,:]/);
 
 		const formattedParts = parts.map((part) => {
@@ -228,17 +238,20 @@
 	const activeModelInfo = $derived.by(() => {
 		if (activeModel === '') return null;
 
-		const model = enabledArr.find((m) => m.model_id === activeModel);
+		const model = enabledArr.find((m) => m.id === activeModel);
 
 		if (!model) return null;
 
 		return {
 			...model,
-			formatted: formatModelName(activeModel),
+			formatted: formatModelName(model),
 		};
 	});
 
-	const pinnedModels = $derived(enabledArr.filter((m) => isPinned(m)));
+	// For now, we'll need to maintain pinned models using the old enabled models structure
+	// until we migrate the pinning system to work with the new ModelInfo structure
+	const enabledModelsData = $derived(Object.values(enabledModelsQuery.data ?? {}));
+	const pinnedModels = $derived(enabledModelsData.filter((m) => isPinned(m)));
 </script>
 
 <svelte:window
@@ -259,12 +272,12 @@
 			)}
 		>
 			<div class="flex items-center gap-2 pr-2">
-				{#if currentModel && getModelIcon(currentModel.model_id)}
-					{@const IconComponent = getModelIcon(currentModel.model_id)}
+				{#if currentModel && getModelIcon(currentModel.id)}
+					{@const IconComponent = getModelIcon(currentModel.id)}
 					<IconComponent class="size-3" />
 				{/if}
 				<span class="truncate">
-					{currentModel ? formatModelName(currentModel.model_id).full : 'Select model'}
+					{currentModel ? formatModelName(currentModel).full : 'Select model'}
 				</span>
 			</div>
 			<ChevronDownIcon class="size-4 opacity-50" />
@@ -324,12 +337,9 @@
 				>
 					{#if view === 'favorites' && pinnedModels.length > 0}
 						{#each pinnedModels as model (model._id)}
-							{@const formatted = formatModelName(model.model_id)}
-							{@const openRouterModel = modelsState
-								.from(Provider.OpenRouter)
-								.find((m) => m.id === model.model_id)}
-							{@const disabled =
-								onlyImageModels && openRouterModel && !supportsImages(openRouterModel)}
+							{@const modelInfo = enabledArr.find((m) => m.id === model.model_id)}
+							{@const formatted = modelInfo ? formatModelName(modelInfo) : { full: model.model_id, primary: model.model_id, secondary: '' }}
+							{@const disabled = onlyImageModels && modelInfo && !supportsImages(modelInfo)}
 
 							<Command.Item
 								value={model.model_id}
@@ -354,7 +364,7 @@
 								</div>
 
 								<div class="flex place-items-center gap-1">
-									{#if openRouterModel && supportsImages(openRouterModel)}
+									{#if modelInfo && supportsImages(modelInfo)}
 										<Tooltip>
 											{#snippet trigger(tooltip)}
 												<div
@@ -364,11 +374,11 @@
 													<EyeIcon class="size-3" />
 												</div>
 											{/snippet}
-											Supports image analysis
+											Supports vision/image analysis
 										</Tooltip>
 									{/if}
 
-									{#if openRouterModel && supportsReasoning(openRouterModel)}
+									{#if modelInfo && supportsReasoning(modelInfo)}
 										<Tooltip>
 											{#snippet trigger(tooltip)}
 												<div
@@ -379,6 +389,34 @@
 												</div>
 											{/snippet}
 											Supports reasoning
+										</Tooltip>
+									{/if}
+									
+									{#if modelInfo && supportsStreaming(modelInfo)}
+										<Tooltip>
+											{#snippet trigger(tooltip)}
+												<div
+													{...tooltip.trigger}
+													class="rounded-md border-blue-500 bg-blue-500/50 p-1 text-blue-400"
+												>
+													<ZapIcon class="size-3" />
+												</div>
+											{/snippet}
+											Supports streaming responses
+										</Tooltip>
+									{/if}
+
+									{#if modelInfo && supportsToolCalls(modelInfo)}
+										<Tooltip>
+											{#snippet trigger(tooltip)}
+												<div
+													{...tooltip.trigger}
+													class="rounded-md border-orange-500 bg-orange-500/50 p-1 text-orange-400"
+												>
+													<CpuIcon class="size-3" />
+												</div>
+											{/snippet}
+											Supports tool/function calling
 										</Tooltip>
 									{/if}
 								</div>
@@ -394,22 +432,25 @@
 								</Command.GroupHeading>
 								<Command.GroupItems class="grid grid-cols-2 gap-3 px-3 pb-3 md:grid-cols-4">
 									{#each pinnedModels as model (model._id)}
-										{@render modelCard(model)}
+										{@const modelInfo = enabledArr.find((m) => m.id === model.model_id)}
+										{#if modelInfo}
+											{@render modelCard(modelInfo)}
+										{/if}
 									{/each}
 								</Command.GroupItems>
 							</Command.Group>
 						{/if}
-						{#each groupedModels as [company, models] (company)}
-							{@const filteredModels = models.filter((m) => !isPinned(m))}
-							{#if filteredModels.length > 0}
+						{#each groupedModels as [provider, models] (provider)}
+							{@const providerMeta = PROVIDER_META[provider]}
+							{#if models.length > 0}
 								<Command.Group class="space-y-2">
 									<Command.GroupHeading
-										class="text-heading/75 flex scroll-m-40 items-center gap-2 px-3 pt-3 pb-1 text-xs font-semibold tracking-wide capitalize"
+										class="text-heading/75 flex scroll-m-40 items-center gap-2 px-3 pt-3 pb-1 text-xs font-semibold tracking-wide"
 									>
-										{company}
+										{providerMeta.title}
 									</Command.GroupHeading>
 									<Command.GroupItems class="grid grid-cols-2 gap-3 px-3 pb-3 md:grid-cols-4">
-										{#each filteredModels as model (model._id)}
+										{#each models as model (model.id)}
 											{@render modelCard(model)}
 										{/each}
 									</Command.GroupItems>
@@ -457,14 +498,12 @@
 </Popover.Root>
 
 {#snippet modelCard(model: (typeof enabledArr)[number])}
-	{@const formatted = formatModelName(model.model_id)}
-	{@const openRouterModel = modelsState
-		.from(Provider.OpenRouter)
-		.find((m) => m.id === model.model_id)}
-	{@const disabled = onlyImageModels && openRouterModel && !supportsImages(openRouterModel)}
+	{@const formatted = formatModelName(model)}
+	{@const disabled = onlyImageModels && !supportsImages(model)}
+	{@const enabledModelData = enabledModelsData.find(m => m.model_id === model.id)}
 
 	<Command.Item
-		value={model.model_id}
+		value={model.id}
 		class={cn(
 			'border-border bg-popover group/item flex gap-2 rounded-lg border p-2',
 			'relative scroll-m-36 select-none',
@@ -472,11 +511,11 @@
 			'h-36 w-32 flex-col items-center justify-center',
 			disabled && 'opacity-50'
 		)}
-		onSelect={() => modelSelected(model.model_id)}
+		onSelect={() => modelSelected(model.id)}
 	>
 		<div class={cn('flex flex-col items-center')}>
-			{#if getModelIcon(model.model_id)}
-				{@const ModelIcon = getModelIcon(model.model_id)}
+			{#if getModelIcon(model.id)}
+				{@const ModelIcon = getModelIcon(model.id)}
 				<ModelIcon class="size-6 shrink-0" />
 			{/if}
 
@@ -494,7 +533,7 @@
 		</div>
 
 		<div class="flex place-items-center gap-1">
-			{#if openRouterModel && supportsImages(openRouterModel)}
+			{#if supportsImages(model)}
 				<Tooltip>
 					{#snippet trigger(tooltip)}
 						<div
@@ -504,11 +543,11 @@
 							<EyeIcon class="size-3" />
 						</div>
 					{/snippet}
-					Supports image analysis
+					Supports vision/image analysis
 				</Tooltip>
 			{/if}
 
-			{#if openRouterModel && supportsReasoning(openRouterModel)}
+			{#if supportsReasoning(model)}
 				<Tooltip>
 					{#snippet trigger(tooltip)}
 						<div
@@ -521,26 +560,56 @@
 					Supports reasoning
 				</Tooltip>
 			{/if}
+
+			{#if supportsStreaming(model)}
+				<Tooltip>
+					{#snippet trigger(tooltip)}
+						<div
+							{...tooltip.trigger}
+							class="rounded-md border-blue-500 bg-blue-500/50 p-1 text-blue-400"
+						>
+							<ZapIcon class="size-3" />
+						</div>
+					{/snippet}
+					Supports streaming responses
+				</Tooltip>
+			{/if}
+
+			{#if supportsToolCalls(model)}
+				<Tooltip>
+					{#snippet trigger(tooltip)}
+						<div
+							{...tooltip.trigger}
+							class="rounded-md border-orange-500 bg-orange-500/50 p-1 text-orange-400"
+						>
+							<CpuIcon class="size-3" />
+						</div>
+					{/snippet}
+					Supports tool/function calling
+				</Tooltip>
+			{/if}
 		</div>
 
-		<div
-			class="bg-popover absolute top-1 right-1 scale-75 rounded-md p-1 transition-all group-hover/item:scale-100 group-hover/item:opacity-100 md:opacity-0"
-		>
-			<Button
-				variant="ghost"
-				size="icon"
-				class="size-7"
-				onclick={(e: MouseEvent) => {
-					e.stopPropagation();
-					togglePin(model._id);
-				}}
+		{#if enabledModelData}
+			<div
+				class="bg-popover absolute top-1 right-1 scale-75 rounded-md p-1 transition-all group-hover/item:scale-100 group-hover/item:opacity-100 md:opacity-0"
 			>
-				{#if isPinned(model)}
-					<PinOffIcon class="size-4" />
-				{:else}
-					<PinIcon class="size-4" />
-				{/if}
-			</Button>
-		</div>
+				<Button
+					variant="ghost"
+					size="icon"
+					class="size-7"
+					onclick={(e: MouseEvent) => {
+						e.stopPropagation();
+						togglePin(enabledModelData._id);
+					}}
+				>
+					{#if isPinned(enabledModelData)}
+						<PinOffIcon class="size-4" />
+					{:else}
+						<PinIcon class="size-4" />
+					{/if}
+				</Button>
+			</div>
+		{/if}
 	</Command.Item>
 {/snippet}

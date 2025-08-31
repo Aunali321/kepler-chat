@@ -1,13 +1,29 @@
-import type { OpenRouterModel } from '$lib/backend/models/open-router';
+import type { ModelInfo } from '@keplersystems/kepler-ai-sdk';
 
-export function supportsImages(model: OpenRouterModel): boolean {
-	return model.architecture.input_modalities.includes('image');
+export function supportsImages(model: ModelInfo): boolean {
+	return model.capabilities.vision;
 }
 
-export function supportsReasoning(model: OpenRouterModel): boolean {
-	return model.supported_parameters.includes('reasoning');
+export function supportsReasoning(model: ModelInfo): boolean {
+	return model.capabilities.reasoning;
 }
 
-export function getImageSupportedModels(models: OpenRouterModel[]): OpenRouterModel[] {
+export function supportsStreaming(model: ModelInfo): boolean {
+	return model.capabilities.streaming;
+}
+
+export function supportsToolCalls(model: ModelInfo): boolean {
+	return model.capabilities.toolCalls;
+}
+
+export function getImageSupportedModels(models: ModelInfo[]): ModelInfo[] {
 	return models.filter(supportsImages);
+}
+
+export function getReasoningModels(models: ModelInfo[]): ModelInfo[] {
+	return models.filter(supportsReasoning);
+}
+
+export function getStreamingModels(models: ModelInfo[]): ModelInfo[] {
+	return models.filter(supportsStreaming);
 }

@@ -63,8 +63,7 @@
 
 	let selectedCategory = $state<string | null>(null);
 
-	const openRouterKeyQuery = useCachedQuery(api.user_keys.get, {
-		provider: Provider.OpenRouter,
+	const userKeysQuery = useCachedQuery(api.user_keys.all, {
 		session_token: session.current?.session.token ?? '',
 	});
 
@@ -76,7 +75,7 @@
 </svelte:head>
 
 <div class="flex h-svh flex-col items-center justify-center">
-	{#if prompt.current.length === 0 && openRouterKeyQuery.data}
+	{#if prompt.current.length === 0 && userKeysQuery.data && Object.values(userKeysQuery.data).some(key => key !== null)}
 		<div class="w-full p-2" in:scale={{ duration: 500, start: 0.9 }}>
 			<h2 class="text-left font-serif text-3xl font-semibold">
 				Hey there <span class={{ 'blur-sm': settings.data?.privacy_mode }}
@@ -131,7 +130,7 @@
 				{/if}
 			</div>
 		</div>
-	{:else if !openRouterKeyQuery.data && !openRouterKeyQuery.isLoading}
+	{:else if userKeysQuery.data && !Object.values(userKeysQuery.data).some(key => key !== null) && !userKeysQuery.isLoading}
 		<div class="w-full p-2" in:scale={{ duration: 500, start: 0.9 }}>
 			<h2 class="text-left font-serif text-3xl font-semibold">
 				Hey there, <span class={{ 'blur-sm': settings.data?.privacy_mode }}

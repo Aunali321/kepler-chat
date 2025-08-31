@@ -101,16 +101,20 @@ export const set = mutation({
 			)
 			.first();
 
-		if (args.enabled && existing) return; // nothing to do here
-
-		if (existing) {
-			await ctx.db.delete(existing._id);
+		if (args.enabled) {
+			// Enable model: insert if not exists
+			if (!existing) {
+				await ctx.db.insert('user_enabled_models', {
+					...object.pick(args, ['provider', 'model_id']),
+					user_id: session.userId,
+					pinned: false,
+				});
+			}
 		} else {
-			await ctx.db.insert('user_enabled_models', {
-				...object.pick(args, ['provider', 'model_id']),
-				user_id: session.userId,
-				pinned: false,
-			});
+			// Disable model: delete if exists
+			if (existing) {
+				await ctx.db.delete(existing._id);
+			}
 		}
 	},
 });

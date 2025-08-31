@@ -69,7 +69,7 @@ export const PROVIDER_META: Record<Provider, ProviderMeta> = {
 	},
 	[Provider.Gemini]: {
 		title: 'Google Gemini',
-		link: 'https://cloud.google.com/vertex-ai',
+		link: 'https://ai.google.dev/docs',
 		description: 'Gemini models from Google',
 		apiKeyName: 'Google AI API Key',
 		placeholder: 'AIza...',

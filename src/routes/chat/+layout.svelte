@@ -213,15 +213,15 @@
 
 	const currentModelSupportsImages = $derived.by(() => {
 		if (!settings.modelId) return false;
-		const openRouterModels = models.from(Provider.OpenRouter);
-		const currentModel = openRouterModels.find((m) => m.id === settings.modelId);
+		const allModels = models.all();
+		const currentModel = allModels.find((m) => m.id === settings.modelId);
 		return currentModel ? supportsImages(currentModel) : false;
 	});
 
 	const currentModelSupportsReasoning = $derived.by(() => {
 		if (!settings.modelId) return false;
-		const openRouterModels = models.from(Provider.OpenRouter);
-		const currentModel = openRouterModels.find((m) => m.id === settings.modelId);
+		const allModels = models.all();
+		const currentModel = allModels.find((m) => m.id === settings.modelId);
 		if (!currentModel) return false;
 		return supportsReasoning(currentModel);
 	});

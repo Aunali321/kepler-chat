@@ -81,7 +81,7 @@ async function getUserApiKeys(sessionToken: string): Promise<Result<UserApiKeys,
 	return ok({
 		openai: keys.openai,
 		anthropic: keys.anthropic,
-		gemini: keys.gemini,
+		google: keys.gemini,
 		mistral: keys.mistral,
 		cohere: keys.cohere,
 		openrouter: keys.openrouter,
@@ -127,8 +127,8 @@ async function generateConversationTitle({
 	// Try to find a fast, cheap model for title generation
 	const availableModels = await modelManager.listAvailableModels();
 	const titleModel =
-		availableModels.find((model) => model.id.includes('kimi-k2')) ||
 		availableModels.find((model) => model.id.includes('gemini-2.5-flash-lite')) ||
+		availableModels.find((model) => model.id.includes('kimi-k2')) ||
 		availableModels.find((model) => model.id.includes('gpt-5-mini')) ||
 		availableModels[0];
 
@@ -396,21 +396,19 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`,
 		return;
 	}
 
-	// Generate completion with streaming
-	const streamResult = await ResultAsync.fromPromise(
-		provider.generateCompletion({
+	// Generate streaming completion
+	let stream: AsyncIterable<any>;
+	try {
+		stream = provider.streamCompletion({
 			model: finalModelId,
 			messages: messagesToSend,
 			temperature: 0.7,
-			stream: true,
 			...(reasoningEffort && { reasoning_effort: reasoningEffort }),
-		}),
-		(e) => `API call failed: ${e}`
-	);
-
-	if (streamResult.isErr()) {
+		});
+		log('Background: Stream created successfully', startTime);
+	} catch (error) {
 		handleGenerationError({
-			error: `Failed to create stream: ${streamResult.error}`,
+			error: `Failed to create stream: API call failed: ${error}`,
 			conversationId,
 			messageId: mid,
 			sessionToken,
@@ -418,9 +416,6 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`,
 		});
 		return;
 	}
-
-	const stream = streamResult.value;
-	log('Background: Stream created successfully', startTime);
 
 	let content = '';
 	let reasoning = '';
@@ -430,76 +425,47 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`,
 
 	try {
 		// Handle streaming response
-		if (stream && typeof stream[Symbol.asyncIterator] === 'function') {
-			for await (const chunk of stream) {
-				if (abortSignal?.aborted) {
-					log('AI response generation aborted during streaming', startTime);
-					break;
-				}
+		for await (const chunk of stream) {
+			if (abortSignal?.aborted) {
+				log('AI response generation aborted during streaming', startTime);
+				break;
+			}
 
-				chunkCount++;
+			chunkCount++;
 
-				// Extract content from chunk based on the stream format
-				if (chunk && typeof chunk === 'object') {
-					const chunkContent = chunk.content || chunk.text || '';
-					const chunkReasoning = chunk.reasoning || '';
-					const chunkAnnotations = chunk.annotations || [];
+			// Extract content from chunk based on the kepler-ai-sdk format
+			if (chunk && typeof chunk === 'object') {
+				const chunkContent = chunk.delta || chunk.content || chunk.text || '';
+				const chunkReasoning = chunk.reasoning || '';
+				const chunkAnnotations = chunk.annotations || [];
 
-					reasoning += chunkReasoning;
-					content += chunkContent;
-					annotations.push(...chunkAnnotations);
+				reasoning += chunkReasoning;
+				content += chunkContent;
+				annotations.push(...chunkAnnotations);
 
-					if (!content && !reasoning) continue;
+				if (!chunkContent && !chunkReasoning) continue;
 
-					generationId = chunk.id || generationId;
+				generationId = chunk.id || generationId;
 
-					const updateResult = await ResultAsync.fromPromise(
-						client.mutation(api.messages.updateContent, {
-							message_id: mid,
-							content,
-							reasoning: reasoning.length > 0 ? reasoning : undefined,
-							session_token: sessionToken,
-							generation_id: generationId,
-							annotations,
-							reasoning_effort: reasoningEffort,
-						}),
-						(e) => `Failed to update message content: ${e}`
+				const updateResult = await ResultAsync.fromPromise(
+					client.mutation(api.messages.updateContent, {
+						message_id: mid,
+						content,
+						reasoning: reasoning.length > 0 ? reasoning : undefined,
+						session_token: sessionToken,
+						generation_id: generationId,
+						annotations,
+						reasoning_effort: reasoningEffort,
+					}),
+					(e) => `Failed to update message content: ${e}`
+				);
+
+				if (updateResult.isErr()) {
+					log(
+						`Background message update failed on chunk ${chunkCount}: ${updateResult.error}`,
+						startTime
 					);
-
-					if (updateResult.isErr()) {
-						log(
-							`Background message update failed on chunk ${chunkCount}: ${updateResult.error}`,
-							startTime
-						);
-					}
 				}
-			}
-		} else {
-			// Handle non-streaming response
-			const response = stream as any;
-			content = response.content || response.text || '';
-			reasoning = response.reasoning || '';
-			generationId = response.id;
-
-			if (response.annotations) {
-				annotations.push(...response.annotations);
-			}
-
-			const updateResult = await ResultAsync.fromPromise(
-				client.mutation(api.messages.updateContent, {
-					message_id: mid,
-					content,
-					reasoning: reasoning.length > 0 ? reasoning : undefined,
-					session_token: sessionToken,
-					generation_id: generationId,
-					annotations,
-					reasoning_effort: reasoningEffort,
-				}),
-				(e) => `Failed to update message content: ${e}`
-			);
-
-			if (updateResult.isErr()) {
-				log(`Background message update failed: ${updateResult.error}`, startTime);
 			}
 		}
 

@@ -1,17 +1,19 @@
-import { getOpenRouterModels, type OpenRouterModel } from '$lib/backend/models/open-router';
-import { Provider } from '$lib/types';
+import { loadUserModels, loadGuestModels } from '$lib/services/model-loader.server';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
-	const [session, openRouterModels] = await Promise.all([locals.auth(), getOpenRouterModels()]);
+	const session = await locals.auth();
+
+	// Load models based on user's API keys
+	const models = session?.session?.token
+		? await loadUserModels(session.session.token)
+		: loadGuestModels();
 
 	return {
 		session,
-		models: {
-			[Provider.OpenRouter]: openRouterModels.unwrapOr([] as OpenRouterModel[]),
-		},
+		models,
 	};
 };
 
-// Makes caching easier, and tbf, we don't need SSR anyways here
+// Enable SSR for better performance
 export const ssr = true;
