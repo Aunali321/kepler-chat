@@ -21,6 +21,9 @@ export type ProviderMeta = {
 	supportsStreaming: boolean;
 	supportsTools: boolean;
 	supportsVision: boolean;
+	supportsVideo: boolean;
+	supportsAudio: boolean;
+	supportsDocuments: boolean;
 	supportsEmbeddings: boolean;
 };
 
@@ -53,6 +56,9 @@ export const PROVIDER_META: Record<Provider, ProviderMeta> = {
 		supportsStreaming: true,
 		supportsTools: true,
 		supportsVision: true,
+		supportsVideo: false,
+		supportsAudio: true,
+		supportsDocuments: false,
 		supportsEmbeddings: true,
 	},
 	[Provider.Anthropic]: {
@@ -65,6 +71,9 @@ export const PROVIDER_META: Record<Provider, ProviderMeta> = {
 		supportsStreaming: true,
 		supportsTools: true,
 		supportsVision: true,
+		supportsVideo: false,
+		supportsAudio: false,
+		supportsDocuments: true,
 		supportsEmbeddings: false,
 	},
 	[Provider.Gemini]: {
@@ -77,6 +86,9 @@ export const PROVIDER_META: Record<Provider, ProviderMeta> = {
 		supportsStreaming: true,
 		supportsTools: true,
 		supportsVision: true,
+		supportsVideo: true,
+		supportsAudio: true,
+		supportsDocuments: true,
 		supportsEmbeddings: true,
 	},
 	[Provider.Mistral]: {
@@ -89,6 +101,9 @@ export const PROVIDER_META: Record<Provider, ProviderMeta> = {
 		supportsStreaming: true,
 		supportsTools: true,
 		supportsVision: false,
+		supportsVideo: false,
+		supportsAudio: false,
+		supportsDocuments: false,
 		supportsEmbeddings: true,
 	},
 	[Provider.Cohere]: {
@@ -101,6 +116,9 @@ export const PROVIDER_META: Record<Provider, ProviderMeta> = {
 		supportsStreaming: true,
 		supportsTools: true,
 		supportsVision: false,
+		supportsVideo: false,
+		supportsAudio: false,
+		supportsDocuments: false,
 		supportsEmbeddings: true,
 	},
 	[Provider.OpenRouter]: {
@@ -113,6 +131,9 @@ export const PROVIDER_META: Record<Provider, ProviderMeta> = {
 		supportsStreaming: true,
 		supportsTools: true,
 		supportsVision: true,
+		supportsVideo: false,
+		supportsAudio: false,
+		supportsDocuments: false,
 		supportsEmbeddings: false,
 	},
 };

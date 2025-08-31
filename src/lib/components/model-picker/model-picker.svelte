@@ -10,7 +10,15 @@
 	import { settings } from '$lib/state/settings.svelte';
 	import { Provider, PROVIDER_META } from '$lib/types';
 	import { fuzzysearch } from '$lib/utils/fuzzy-search';
-	import { supportsImages, supportsReasoning, supportsStreaming, supportsToolCalls } from '$lib/utils/model-capabilities';
+	import {
+		supportsImages,
+		supportsReasoning,
+		supportsStreaming,
+		supportsToolCalls,
+		supportsVideo,
+		supportsAudio,
+		supportsDocuments,
+	} from '$lib/utils/model-capabilities';
 	import { capitalize } from '$lib/utils/strings';
 	import { cn } from '$lib/utils/utils';
 	import { type Component } from 'svelte';
@@ -45,13 +53,32 @@
 
 	type Props = {
 		class?: string;
-		/* When images are attached, we should not select models that don't support images */
-		onlyImageModels?: boolean;
+		/* When attachments are present, restrict to models that support all attachment types */
+		requiredCapabilities?: Array<'vision' | 'audio' | 'video' | 'documents'>;
 	};
 
-	let { class: className, onlyImageModels }: Props = $props();
+	let { class: className, requiredCapabilities = [] }: Props = $props();
 
 	const client = useConvexClient();
+
+	function meetsRequiredCapabilities(model: any): boolean {
+		if (requiredCapabilities.length === 0) return true;
+
+		return requiredCapabilities.every((capability) => {
+			switch (capability) {
+				case 'vision':
+					return supportsImages(model);
+				case 'video':
+					return supportsVideo(model);
+				case 'audio':
+					return supportsAudio(model);
+				case 'documents':
+					return supportsDocuments(model);
+				default:
+					return true;
+			}
+		});
+	}
 
 	const enabledModelsQuery = useCachedQuery(api.user_enabled_models.get_enabled, {
 		session_token: session.current?.session.token ?? '',
@@ -60,9 +87,9 @@
 	// Get enabled models from our models state with ModelInfo data
 	const enabledArr = $derived.by(() => {
 		const enabledModelIds = Object.keys(enabledModelsQuery.data ?? {});
-		const enabledModels = modelsState.all().filter(model => 
-			enabledModelIds.some(id => id.includes(model.id))
-		);
+		const enabledModels = modelsState
+			.all()
+			.filter((model) => enabledModelIds.some((id) => id.includes(model.id)));
 		return enabledModels;
 	});
 
@@ -146,7 +173,10 @@
 
 	// Group models by provider
 	const groupedModels = $derived.by(() => {
-		const groups: Record<Provider, typeof filteredModels> = {} as Record<Provider, typeof filteredModels>;
+		const groups: Record<Provider, typeof filteredModels> = {} as Record<
+			Provider,
+			typeof filteredModels
+		>;
 
 		filteredModels.forEach((model) => {
 			const provider = model.provider as Provider;
@@ -159,10 +189,13 @@
 		// Sort by provider order and name
 		const result = Object.entries(groups)
 			.sort(([a], [b]) => a.localeCompare(b))
-			.map(([provider, models]) => [
-				provider,
-				models.sort((a, b) => a.name.localeCompare(b.name))
-			] as [Provider, typeof models]);
+			.map(
+				([provider, models]) =>
+					[provider, models.sort((a, b) => a.name.localeCompare(b.name))] as [
+						Provider,
+						typeof models,
+					]
+			);
 
 		return result;
 	});
@@ -338,8 +371,10 @@
 					{#if view === 'favorites' && pinnedModels.length > 0}
 						{#each pinnedModels as model (model._id)}
 							{@const modelInfo = enabledArr.find((m) => m.id === model.model_id)}
-							{@const formatted = modelInfo ? formatModelName(modelInfo) : { full: model.model_id, primary: model.model_id, secondary: '' }}
-							{@const disabled = onlyImageModels && modelInfo && !supportsImages(modelInfo)}
+							{@const formatted = modelInfo
+								? formatModelName(modelInfo)
+								: { full: model.model_id, primary: model.model_id, secondary: '' }}
+							{@const disabled = modelInfo && !meetsRequiredCapabilities(modelInfo)}
 
 							<Command.Item
 								value={model.model_id}
@@ -391,7 +426,7 @@
 											Supports reasoning
 										</Tooltip>
 									{/if}
-									
+
 									{#if modelInfo && supportsStreaming(modelInfo)}
 										<Tooltip>
 											{#snippet trigger(tooltip)}
@@ -499,8 +534,8 @@
 
 {#snippet modelCard(model: (typeof enabledArr)[number])}
 	{@const formatted = formatModelName(model)}
-	{@const disabled = onlyImageModels && !supportsImages(model)}
-	{@const enabledModelData = enabledModelsData.find(m => m.model_id === model.id)}
+	{@const disabled = !meetsRequiredCapabilities(model)}
+	{@const enabledModelData = enabledModelsData.find((m) => m.model_id === model.id)}
 
 	<Command.Item
 		value={model.id}

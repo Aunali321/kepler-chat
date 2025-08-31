@@ -20,7 +20,8 @@
 	import { settings } from '$lib/state/settings.svelte.js';
 	import { Provider } from '$lib/types';
 	import { compressImage } from '$lib/utils/image-compression';
-	import { supportsImages, supportsReasoning } from '$lib/utils/model-capabilities';
+	import { supportsImages, supportsReasoning, supportsVideo, supportsAudio, supportsDocuments } from '$lib/utils/model-capabilities';
+	import { AttachmentManager, type AttachmentType, type ProcessedAttachment } from '$lib/utils/attachment-manager';
 	import { omit, pick } from '$lib/utils/object.js';
 	import { cn } from '$lib/utils/utils.js';
 	import { useConvexClient } from 'convex-svelte';
@@ -30,6 +31,10 @@
 	import SendIcon from '~icons/lucide/arrow-up';
 	import ChevronDownIcon from '~icons/lucide/chevron-down';
 	import ImageIcon from '~icons/lucide/image';
+	import VideoIcon from '~icons/lucide/video';
+	import AudioIcon from '~icons/lucide/music';
+	import FileTextIcon from '~icons/lucide/file-text';
+	import PaperclipIcon from '~icons/lucide/paperclip';
 	import PanelLeftIcon from '~icons/lucide/panel-left';
 	import SearchIcon from '~icons/lucide/search';
 	import Settings2Icon from '~icons/lucide/settings-2';
@@ -119,8 +124,8 @@
 
 		loading = true;
 
-		const imagesCopy = [...selectedImages];
-		selectedImages = [];
+		const attachmentsCopy = [...selectedAttachments];
+		selectedAttachments = [];
 
 		try {
 			const res = await callGenerateMessage({
@@ -128,7 +133,7 @@
 				session_token: session.current?.session.token,
 				conversation_id: page.params.id ?? undefined,
 				model_id: settings.modelId,
-				images: imagesCopy.length > 0 ? imagesCopy : undefined,
+				attachments: attachmentsCopy.length > 0 ? attachmentsCopy : undefined,
 				web_search_enabled: settings.webSearchEnabled,
 				reasoning_effort: currentModelSupportsReasoning ? settings.reasoningEffort : undefined,
 			});
@@ -195,7 +200,7 @@
 	const autosize = new TextareaAutosize();
 
 	const message = new PersistedState('prompt', '');
-	let selectedImages = $state<{ url: string; storage_id: string; fileName?: string }[]>([]);
+	let selectedAttachments = $state<ProcessedAttachment[]>([]);
 	let isUploading = $state(false);
 	let fileInput = $state<HTMLInputElement>();
 	let imageModal = $state<{ open: boolean; imageUrl: string; fileName: string }>({
@@ -211,11 +216,20 @@
 
 	models.init();
 
-	const currentModelSupportsImages = $derived.by(() => {
-		if (!settings.modelId) return false;
+	const currentModel = $derived.by(() => {
+		if (!settings.modelId) return null;
 		const allModels = models.all();
-		const currentModel = allModels.find((m) => m.id === settings.modelId);
-		return currentModel ? supportsImages(currentModel) : false;
+		return allModels.find((m) => m.id === settings.modelId) || null;
+	});
+
+	const currentModelSupportsImages = $derived(currentModel ? supportsImages(currentModel) : false);
+	const currentModelSupportsVideo = $derived(currentModel ? supportsVideo(currentModel) : false);
+	const currentModelSupportsAudio = $derived(currentModel ? supportsAudio(currentModel) : false);
+	const currentModelSupportsDocuments = $derived(currentModel ? supportsDocuments(currentModel) : false);
+
+	const supportedAttachmentTypes = $derived.by(() => {
+		if (!currentModel) return [];
+		return AttachmentManager.getSupportedAttachmentTypes(currentModel);
 	});
 
 	const currentModelSupportsReasoning = $derived.by(() => {
@@ -228,36 +242,49 @@
 
 	const fileUpload = new FileUpload({
 		multiple: true,
-		accept: 'image/*',
-		maxSize: 10 * 1024 * 1024, // 10MB
+		maxSize: 100 * 1024 * 1024, // 100MB max for any file type
+	});
+
+	// Update the file input accept attribute reactively
+	$effect(() => {
+		if (fileInput) {
+			const acceptString = AttachmentManager.getAcceptString(supportedAttachmentTypes);
+			fileInput.accept = acceptString;
+		}
 	});
 
 	async function handleFileChange(files: File[]) {
-		if (!files.length || !session.current?.session.token) return;
+		if (!files.length || !session.current?.session.token || !currentModel) return;
 
 		isUploading = true;
-		const uploadedFiles: { url: string; storage_id: string; fileName?: string }[] = [];
+		const uploadedFiles: ProcessedAttachment[] = [];
 
 		try {
 			for (const file of files) {
-				// Skip non-image files
-				if (!file.type.startsWith('image/')) {
-					console.warn('Skipping non-image file:', file.name);
+				// Validate file against current model capabilities
+				const validation = AttachmentManager.validateFile(file, currentModel);
+				if (!validation.valid) {
+					console.warn(`Skipping invalid file ${file.name}: ${validation.error}`);
+					// TODO: Show error toast to user
 					continue;
 				}
 
-				// Compress image to max 1MB
-				const compressedFile = await compressImage(file, 1024 * 1024);
+				let fileToUpload = file;
+
+				// Compress images to max 1MB for better performance
+				if (validation.type === 'image') {
+					fileToUpload = await compressImage(file, 1024 * 1024);
+				}
 
 				// Generate upload URL
 				const uploadUrl = await client.mutation(api.storage.generateUploadUrl, {
 					session_token: session.current.session.token,
 				});
 
-				// Upload compressed file
+				// Upload file
 				const result = await fetch(uploadUrl, {
 					method: 'POST',
-					body: compressedFile,
+					body: fileToUpload,
 				});
 
 				if (!result.ok) {
@@ -273,11 +300,18 @@
 				});
 
 				if (url) {
-					uploadedFiles.push({ url, storage_id: storageId, fileName: file.name });
+					uploadedFiles.push({
+						type: validation.type!,
+						url,
+						storage_id: storageId,
+						fileName: file.name,
+						mimeType: file.type,
+						size: file.size
+					});
 				}
 			}
 
-			selectedImages = [...selectedImages, ...uploadedFiles];
+			selectedAttachments = [...selectedAttachments, ...uploadedFiles];
 		} catch (error) {
 			console.error('Upload failed:', error);
 		} finally {
@@ -285,8 +319,31 @@
 		}
 	}
 
-	function removeImage(index: number) {
-		selectedImages = selectedImages.filter((_, i) => i !== index);
+	function removeAttachment(index: number) {
+		selectedAttachments = selectedAttachments.filter((_, i) => i !== index);
+	}
+
+	function getRequiredCapabilities(attachments: ProcessedAttachment[]): Array<'vision' | 'audio' | 'video' | 'documents'> {
+		const capabilities: Array<'vision' | 'audio' | 'video' | 'documents'> = [];
+		
+		attachments.forEach(attachment => {
+			switch (attachment.type) {
+				case 'image':
+					if (!capabilities.includes('vision')) capabilities.push('vision');
+					break;
+				case 'video':
+					if (!capabilities.includes('video')) capabilities.push('video');
+					break;
+				case 'audio':
+					if (!capabilities.includes('audio')) capabilities.push('audio');
+					break;
+				case 'document':
+					if (!capabilities.includes('documents')) capabilities.push('documents');
+					break;
+			}
+		});
+		
+		return capabilities;
 	}
 
 	function openImageModal(imageUrl: string, fileName: string) {
@@ -446,7 +503,7 @@
 <Sidebar.Root
 	bind:open={sidebarOpen}
 	class="fill-device-height overflow-clip"
-	{...currentModelSupportsImages ? omit(fileUpload.dropzone, ['onclick']) : {}}
+	{...supportedAttachmentTypes.length > 0 ? omit(fileUpload.dropzone, ['onclick']) : {}}
 >
 	<AppSidebar bind:searchModalOpen />
 
@@ -608,26 +665,45 @@
 							</div>
 						{/if}
 						<div class="flex flex-grow flex-col">
-							{#if selectedImages.length > 0}
+							{#if selectedAttachments.length > 0}
 								<div class="mb-2 flex flex-wrap gap-2">
-									{#each selectedImages as image, index (image.storage_id)}
+									{#each selectedAttachments as attachment, index (attachment.storage_id)}
 										<div
-											class="group border-secondary-foreground/[0.08] bg-secondary-foreground/[0.02] hover:bg-secondary-foreground/10 relative flex h-12 w-12 max-w-full shrink-0 items-center justify-center gap-2 rounded-xl border border-solid p-0 transition-[width,height] duration-500"
+											class="group border-secondary-foreground/[0.08] bg-secondary-foreground/[0.02] hover:bg-secondary-foreground/10 relative flex h-12 max-w-full shrink-0 items-center justify-center gap-2 rounded-xl border border-solid p-2 transition-[width,height] duration-500"
+											class:w-12={attachment.type === 'image'}
+											class:w-auto={attachment.type !== 'image'}
 										>
+											{#if attachment.type === 'image'}
+												<button
+													type="button"
+													onclick={() => openImageModal(attachment.url, attachment.fileName)}
+													class="rounded-lg"
+												>
+													<img
+														src={attachment.url}
+														alt="Uploaded"
+														class="size-8 rounded-lg object-cover opacity-100 transition-opacity"
+													/>
+												</button>
+											{:else if attachment.type === 'video'}
+												<div class="flex items-center gap-2">
+													<VideoIcon class="size-4 text-blue-500" />
+													<span class="text-xs text-muted-foreground truncate max-w-20">{attachment.fileName}</span>
+												</div>
+											{:else if attachment.type === 'audio'}
+												<div class="flex items-center gap-2">
+													<AudioIcon class="size-4 text-green-500" />
+													<span class="text-xs text-muted-foreground truncate max-w-20">{attachment.fileName}</span>
+												</div>
+											{:else if attachment.type === 'document'}
+												<div class="flex items-center gap-2">
+													<FileTextIcon class="size-4 text-orange-500" />
+													<span class="text-xs text-muted-foreground truncate max-w-20">{attachment.fileName}</span>
+												</div>
+											{/if}
 											<button
 												type="button"
-												onclick={() => openImageModal(image.url, image.fileName || 'image')}
-												class="rounded-lg"
-											>
-												<img
-													src={image.url}
-													alt="Uploaded"
-													class="size-10 rounded-lg object-cover opacity-100 transition-opacity"
-												/>
-											</button>
-											<button
-												type="button"
-												onclick={() => removeImage(index)}
+												onclick={() => removeAttachment(index)}
 												class="bg-secondary hover:bg-muted absolute -top-1 -right-1 cursor-pointer rounded-full p-1 opacity-0 transition group-hover:opacity-100"
 											>
 												<XIcon class="h-3 w-3" />
@@ -707,7 +783,7 @@
 									</Tooltip>
 								</div>
 								<div class="flex flex-wrap items-center gap-2 pr-2">
-									<ModelPicker onlyImageModels={selectedImages.length > 0} />
+									<ModelPicker requiredCapabilities={selectedAttachments.length > 0 ? getRequiredCapabilities(selectedAttachments) : []} />
 									<div class="flex items-center gap-2">
 										{#if currentModelSupportsReasoning}
 											<DropdownMenu.Root>
@@ -746,7 +822,7 @@
 											<SearchIcon class="!size-3" />
 											<span class="hidden whitespace-nowrap sm:inline">Web search</span>
 										</button>
-										{#if currentModelSupportsImages}
+										{#if supportedAttachmentTypes.length > 0}
 											<button
 												type="button"
 												class="border-border hover:bg-accent/20 flex items-center gap-1 rounded-full border px-1 py-1 text-xs transition-colors disabled:opacity-50 sm:px-2"
@@ -758,9 +834,15 @@
 														class="size-3 animate-spin rounded-full border-2 border-current border-t-transparent"
 													></div>
 												{:else}
-													<ImageIcon class="!size-3" />
+													<PaperclipIcon class="!size-3" />
 												{/if}
-												<span class="hidden whitespace-nowrap sm:inline">Attach image</span>
+												<span class="hidden whitespace-nowrap sm:inline">
+													{#if supportedAttachmentTypes.length === 1 && supportedAttachmentTypes[0]}
+														Attach {AttachmentManager.getTypeDisplayName(supportedAttachmentTypes[0]).toLowerCase()}
+													{:else}
+														Attach files
+													{/if}
+												</span>
 											</button>
 										{/if}
 										{#if session.current !== null && message.current.trim() !== ''}
@@ -811,12 +893,20 @@
 		</div>
 	</Sidebar.Inset>
 
-	{#if fileUpload.isDragging && currentModelSupportsImages}
+	{#if fileUpload.isDragging && supportedAttachmentTypes.length > 0}
 		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/10 backdrop-blur-sm">
 			<div class="text-center">
 				<UploadIcon class="text-primary mx-auto mb-4 h-16 w-16" />
-				<p class="text-xl font-semibold">Add image</p>
-				<p class="mt-2 text-sm opacity-75">Drop an image here to attach it to your message.</p>
+				<p class="text-xl font-semibold">
+					{#if supportedAttachmentTypes.length === 1 && supportedAttachmentTypes[0]}
+						Add {AttachmentManager.getTypeDisplayName(supportedAttachmentTypes[0]).toLowerCase()}
+					{:else}
+						Add files
+					{/if}
+				</p>
+				<p class="mt-2 text-sm opacity-75">
+					Drop {supportedAttachmentTypes.length === 1 ? `${supportedAttachmentTypes[0]}s` : 'supported files'} here to attach to your message.
+				</p>
 			</div>
 		</div>
 	{/if}

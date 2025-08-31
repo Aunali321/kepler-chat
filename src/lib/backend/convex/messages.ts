@@ -48,13 +48,16 @@ export const create = mutation({
 		token_count: v.optional(v.number()),
 		web_search_enabled: v.optional(v.boolean()),
 		reasoning_effort: v.optional(reasoningEffortValidator),
-		// Optional image attachments
-		images: v.optional(
+		// Optional attachments
+		attachments: v.optional(
 			v.array(
 				v.object({
+					type: v.union(v.literal('image'), v.literal('video'), v.literal('audio'), v.literal('document')),
 					url: v.string(),
 					storage_id: v.string(),
-					fileName: v.optional(v.string()),
+					fileName: v.string(),
+					mimeType: v.string(),
+					size: v.number(),
 				})
 			)
 		),
@@ -96,8 +99,8 @@ export const create = mutation({
 				token_count: args.token_count,
 				web_search_enabled: args.web_search_enabled,
 				reasoning_effort: args.reasoning_effort,
-				// Optional image attachments
-				images: args.images,
+				// Optional attachments
+				attachments: args.attachments,
 			}),
 			ctx.db.patch(args.conversation_id as Id<'conversations'>, {
 				generating: true,

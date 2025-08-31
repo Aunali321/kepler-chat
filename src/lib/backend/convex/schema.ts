@@ -72,13 +72,16 @@ export default defineSchema({
 		model_id: v.optional(v.string()),
 		provider: v.optional(providerValidator),
 		token_count: v.optional(v.number()),
-		// Optional image attachments
-		images: v.optional(
+		// Optional attachments
+		attachments: v.optional(
 			v.array(
 				v.object({
+					type: v.union(v.literal('image'), v.literal('video'), v.literal('audio'), v.literal('document')),
 					url: v.string(),
 					storage_id: v.string(),
-					fileName: v.optional(v.string()),
+					fileName: v.string(),
+					mimeType: v.string(),
+					size: v.number(),
 				})
 			)
 		),

@@ -25,12 +25,15 @@ const reqBodySchema = z
 		session_token: z.string(),
 		conversation_id: z.string().optional(),
 		web_search_enabled: z.boolean().optional(),
-		images: z
+		attachments: z
 			.array(
 				z.object({
+					type: z.enum(['image', 'video', 'audio', 'document']),
 					url: z.string(),
 					storage_id: z.string(),
-					fileName: z.string().optional(),
+					fileName: z.string(),
+					mimeType: z.string(),
+					size: z.number(),
 				})
 			)
 			.optional(),
@@ -353,18 +356,57 @@ async function generateAIResponse({
 	log(`Background: ${attachedRules.length} rules attached`, startTime);
 
 	const formattedMessages = messages.map((m) => {
-		if (m.images && m.images.length > 0 && m.role === 'user') {
+		// Handle attachments format
+		if (m.attachments && m.attachments.length > 0 && m.role === 'user') {
+			const contentParts: Array<{ 
+				type: string; 
+				text?: string; 
+				imageUrl?: string; 
+				videoUrl?: string; 
+				audioUrl?: string; 
+				documentUrl?: string; 
+				mimeType?: string;
+			}> = [{ type: 'text', text: m.content }];
+			
+			for (const attachment of m.attachments) {
+				switch (attachment.type) {
+					case 'image':
+						contentParts.push({
+							type: 'image',
+							imageUrl: attachment.url,
+							mimeType: attachment.mimeType,
+						});
+						break;
+					case 'video':
+						contentParts.push({
+							type: 'video',
+							videoUrl: attachment.url,
+							mimeType: attachment.mimeType,
+						});
+						break;
+					case 'audio':
+						contentParts.push({
+							type: 'audio',
+							audioUrl: attachment.url,
+							mimeType: attachment.mimeType,
+						});
+						break;
+					case 'document':
+						contentParts.push({
+							type: 'document',
+							documentUrl: attachment.url,
+							mimeType: attachment.mimeType,
+						});
+						break;
+				}
+			}
+			
 			return {
 				role: 'user' as const,
-				content: [
-					{ type: 'text', text: m.content },
-					...m.images.map((img) => ({
-						type: 'image_url',
-						image_url: { url: img.url },
-					})),
-				],
+				content: contentParts,
 			};
 		}
+		
 		return {
 			role: m.role as 'user' | 'assistant' | 'system',
 			content: m.content,
@@ -618,7 +660,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				content: args.message,
 				content_html: '',
 				role: 'user',
-				images: args.images,
+				attachments: args.attachments,
 				web_search_enabled: args.web_search_enabled,
 				session_token: sessionToken,
 			}),
@@ -657,7 +699,7 @@ export const POST: RequestHandler = async ({ request }) => {
 					model_id: args.model_id,
 					reasoning_effort: args.reasoning_effort,
 					role: 'user',
-					images: args.images,
+					attachments: args.attachments,
 					web_search_enabled: args.web_search_enabled,
 				}),
 				(e) => `Failed to create user message: ${e}`
