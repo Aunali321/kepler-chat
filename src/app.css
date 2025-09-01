@@ -343,6 +343,16 @@
 		overscroll-behavior: contain;
 	}
 
+	/* Large modal variant for file previews */
+	.modal-large .modal-box {
+		@apply max-w-[90vw] max-h-[90vh] p-4;
+	}
+
+	/* Extra large modal for maximum viewing space */
+	.modal-xlarge .modal-box {
+		@apply max-w-[95vw] max-h-[95vh] p-2;
+	}
+
 	.modal-top {
 		@apply place-items-start;
 

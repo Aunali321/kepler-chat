@@ -5,7 +5,7 @@
 	import { CopyButton } from '$lib/components/ui/copy-button';
 	import '../../../markdown.css';
 	import MarkdownRenderer from './markdown-renderer.svelte';
-	import { ImageModal } from '$lib/components/ui/image-modal';
+	import FilePreview from '$lib/components/ui/file-preview/file-preview.svelte';
 	import { sanitizeHtml } from '$lib/utils/markdown-it';
 	import { on } from 'svelte/events';
 	import { isHtmlElement } from '$lib/utils/is';
@@ -46,20 +46,7 @@
 
 	let { message }: Props = $props();
 
-	let imageModal = $state<{ open: boolean; imageUrl: string; fileName: string }>({
-		open: false,
-		imageUrl: '',
-		fileName: '',
-	});
-
-	function openImageModal(imageUrl: string, fileName: string) {
-		imageModal = {
-			open: true,
-			imageUrl,
-			fileName,
-		};
-	}
-
+	
 	async function createBranchedConversation() {
 		const res = await ResultAsync.fromPromise(
 			client.mutation(api.conversations.createBranched, {
@@ -132,20 +119,32 @@
 			});
 		}}
 	>
-		{#if message.images && message.images.length > 0}
+		{#if message.attachments && message.attachments.length > 0}
+			<div class="mb-2 flex flex-wrap gap-2">
+				{#each message.attachments as attachment (attachment.storage_id)}
+					<FilePreview
+						{attachment}
+						isUserMessage={message.role === 'user'}
+						compact={true}
+					/>
+				{/each}
+			</div>
+		{:else if message.images && message.images.length > 0}
+			<!-- Legacy image support -->
 			<div class="mb-2 flex flex-wrap gap-2">
 				{#each message.images as image (image.storage_id)}
-					<button
-						type="button"
-						onclick={() => openImageModal(image.url, image.fileName || 'image')}
-						class="rounded-lg"
-					>
-						<img
-							src={image.url}
-							alt={image.fileName || 'Uploaded'}
-							class="max-w-xs rounded-lg transition-opacity hover:opacity-80"
-						/>
-					</button>
+					<FilePreview
+						attachment={{
+							type: 'image',
+							url: image.url,
+							fileName: image.fileName || 'image',
+							mimeType: image.mimeType || 'image/jpeg',
+							size: image.size || 0,
+							storage_id: image.storage_id
+						}}
+						isUserMessage={message.role === 'user'}
+						compact={true}
+					/>
 				{/each}
 			</div>
 		{/if}
@@ -309,14 +308,7 @@
 		</div>
 	</div>
 
-	{#if message.images && message.images.length > 0}
-		<ImageModal
-			bind:open={imageModal.open}
-			imageUrl={imageModal.imageUrl}
-			fileName={imageModal.fileName}
-		/>
 	{/if}
-{/if}
 
 {#snippet siteIcon({ url }: { url: URL })}
 	<Avatar src={`https://www.google.com/s2/favicons?domain=${url.hostname}&sz=16`}>
