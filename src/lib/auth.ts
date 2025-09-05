@@ -9,6 +9,10 @@ const client = new ConvexHttpClient(process.env.PUBLIC_CONVEX_URL!);
 export const auth = betterAuth({
 	secret: process.env.BETTER_AUTH_SECRET!,
 	database: convexAdapter(client),
+	emailAndPassword: {
+		enabled: true,
+		requireEmailVerification: false,
+	},
 	socialProviders: {
 		google: {
 			clientId: process.env.GOOGLE_CLIENT_ID!,
