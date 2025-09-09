@@ -71,12 +71,6 @@
 		"vite": "^6.2.6",
 		"vitest": "^3.2.3"
 	},
-	"pnpm": {
-		"onlyBuiltDependencies": [
-			"@tailwindcss/oxide",
-			"esbuild"
-		]
-	},
 	"dependencies": {
 		"@floating-ui/dom": "^1.7.1",
 		"@fontsource-variable/fraunces": "^5.2.7",
@@ -87,7 +81,7 @@
 		"@fontsource-variable/nunito-sans": "^5.2.6",
 		"@fontsource-variable/open-sans": "^5.2.6",
 		"@fontsource/instrument-serif": "^5.2.6",
-		"@keplersystems/kepler-ai-sdk": "file:./tmp/kepler-ai-sdk",
+		"@keplersystems/kepler-ai-sdk": "^1.0.6",
 		"better-auth": "^1.2.9",
 		"convex-helpers": "^0.1.94",
 		"hastscript": "^9.0.1",

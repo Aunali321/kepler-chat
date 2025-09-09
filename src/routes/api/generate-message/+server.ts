@@ -359,21 +359,23 @@ async function generateAIResponse({
 		if (m.attachments && m.attachments.length > 0 && m.role === 'user') {
 			const contentParts = [
 				{ type: 'text', text: m.content },
-				...m.attachments.map(attachment => ({
+				...m.attachments.map((attachment) => ({
 					type: attachment.type,
 					[`${attachment.type}Url`]: attachment.url,
 					mimeType: attachment.mimeType,
-				}))
+				})),
 			];
-			
+
 			return { role: 'user' as const, content: contentParts };
 		}
-		
+
 		return {
 			role: m.role as 'user' | 'assistant' | 'system',
 			content: m.content,
 		};
 	});
+
+	console.log('Formatted Messages:', JSON.stringify(formattedMessages, null, 2));
 
 	// Only include system message if there are rules to follow
 	const messagesToSend =

@@ -62,7 +62,9 @@
 	<form onsubmit={handleSubmit} class="space-y-6">
 		{#if mode === 'sign-up'}
 			<div class="space-y-2">
-				<Label for="name" class="text-sm font-medium">Name</Label>
+				<Label for="name" class="text-sm font-medium">
+					{#snippet children()}Name{/snippet}
+				</Label>
 				<Input
 					id="name"
 					type="text"
@@ -76,7 +78,9 @@
 		{/if}
 		
 		<div class="space-y-2">
-			<Label for="email" class="text-sm font-medium">Email</Label>
+			<Label for="email" class="text-sm font-medium">
+				{#snippet children()}Email{/snippet}
+			</Label>
 			<Input
 				id="email"
 				type="email"
@@ -89,7 +93,9 @@
 		</div>
 		
 		<div class="space-y-2">
-			<Label for="password" class="text-sm font-medium">Password</Label>
+			<Label for="password" class="text-sm font-medium">
+				{#snippet children()}Password{/snippet}
+			</Label>
 			<Input
 				id="password"
 				type="password"
